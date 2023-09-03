@@ -15,4 +15,16 @@ public class Token {
     public String toString() {
         return type + " " + lexeme + " " + literal;
     }
+
+    public CharSequence errorString() {
+        if (type == TokenType.EOF) {
+            return "end of file";
+        }
+
+        if (type.isPunctuation()) {
+            return type.toString();
+        }
+
+        return type + " `" + lexeme + "`";
+    }
 }

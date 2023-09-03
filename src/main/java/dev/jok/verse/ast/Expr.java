@@ -1,8 +1,11 @@
 package dev.jok.verse.ast;
 
+import dev.jok.verse.VerseLang;
 import dev.jok.verse.lexer.Token;
 import dev.jok.verse.util.AstPrinter;
 import lombok.RequiredArgsConstructor;
+
+import java.util.Objects;
 
 public abstract class Expr {
 
@@ -10,10 +13,25 @@ public abstract class Expr {
 
     public interface Visitor<R> {
 
+        R visitAssignExpr(Assign assign);
         R visitBinaryExpr(Binary binary);
         R visitGroupingExpr(Grouping grouping);
         R visitLiteralExpr(Literal literal);
         R visitUnaryExpr(Unary unary);
+        R visitVariableExpr(Variable variable);
+
+    }
+
+    @RequiredArgsConstructor
+    public static class Assign extends Expr {
+
+        public final Token name;
+        public final Expr value;
+
+        @Override
+        public <R> R accept(Visitor<R> visitor) {
+            return visitor.visitAssignExpr(this);
+        }
 
     }
 
@@ -53,6 +71,15 @@ public abstract class Expr {
             return visitor.visitLiteralExpr(this);
         }
 
+        @Override
+        public String toString() {
+            if (value instanceof String str) {
+                return "\"" + str + "\"";
+            }
+
+            return Objects.toString(value);
+        }
+
     }
 
     @RequiredArgsConstructor
@@ -68,9 +95,21 @@ public abstract class Expr {
 
     }
 
+    @RequiredArgsConstructor
+    public static class Variable extends Expr {
+
+        public final Token name;
+
+        @Override
+        public <R> R accept(Visitor<R> visitor) {
+            return visitor.visitVariableExpr(this);
+        }
+
+    }
+
     @Override
     public String toString() {
-        return new AstPrinter().print(this);
+        return VerseLang.PRINTER.print(this);
     }
 
 }

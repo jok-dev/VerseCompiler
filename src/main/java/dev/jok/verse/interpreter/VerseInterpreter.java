@@ -23,6 +23,11 @@ public class VerseInterpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void
         System.out.println(value);
     }
 
+    @Override
+    public Void visitBlockStmt(Stmt.Block block) {
+        return null;
+    }
+
     // @Todo(Jok) @Cleanup might be nice to separate these out?
     @Override
     public Void visitExpressionStmt(Stmt.Expression expression) {
@@ -34,6 +39,16 @@ public class VerseInterpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void
     public Void visitPrintStmt(Stmt.Print print) {
         Object value = evaluate(print.expression);
         System.out.println(value);
+        return null;
+    }
+
+    @Override
+    public Void visitVariableDeclarationStmt(Stmt.VariableDeclaration variableDeclaration) {
+        return null;
+    }
+
+    @Override
+    public Object visitAssignExpr(Expr.Assign assign) {
         return null;
     }
 
@@ -77,6 +92,38 @@ public class VerseInterpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void
 
             case EQUALS -> left.equals(right);
 
+            case GREATER -> {
+                if (left instanceof VNumber<?> leftVal && right instanceof VNumber<?> rightVal) {
+                    yield leftVal.greaterThan(rightVal);
+                }
+
+                throw runtimeError(binary, "Expected numbers");
+            }
+
+            case GREATER_EQUAL -> {
+                if (left instanceof VNumber<?> leftVal && right instanceof VNumber<?> rightVal) {
+                    yield leftVal.greaterThanOrEqual(rightVal);
+                }
+
+                throw runtimeError(binary, "Expected numbers");
+            }
+
+            case LESS -> {
+                if (left instanceof VNumber<?> leftVal && right instanceof VNumber<?> rightVal) {
+                    yield leftVal.lessThan(rightVal);
+                }
+
+                throw runtimeError(binary, "Expected numbers");
+            }
+
+            case LESS_EQUAL -> {
+                if (left instanceof VNumber<?> leftVal && right instanceof VNumber<?> rightVal) {
+                    yield leftVal.lessThanOrEqual(rightVal);
+                }
+
+                throw runtimeError(binary, "Expected numbers");
+            }
+
             default -> throw internalError(binary, "Unknown binary operator: " + binary.operator.type);
         };
     }
@@ -110,6 +157,13 @@ public class VerseInterpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void
         };
     }
 
+    @Override
+    public Object visitVariableExpr(Expr.Variable variable) {
+        System.out.println(variable);
+
+        return variable;
+    }
+
     private boolean isTruthy(Object obj) {
         if (obj instanceof Boolean val) {
             return val;
@@ -128,6 +182,12 @@ public class VerseInterpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void
 
     public static InternalError internalError(Expr expr, String message) {
         return new InternalError("Internal error interpreting expression " + expr + ": " + message);
+    }
+
+    // @Todo(Jok) @Error: we should use better interpreter handling for this kind of error
+    @Deprecated
+    public static InternalError internalError(String message) {
+        return new InternalError("Internal error interpreting " + ": " + message);
     }
 
     private static final class RuntimeError extends RuntimeException {

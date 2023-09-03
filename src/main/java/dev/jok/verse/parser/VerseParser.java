@@ -11,54 +11,129 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 import static dev.jok.verse.lexer.TokenType.*;
 
 @RequiredArgsConstructor
 public class VerseParser {
 
+    private static final Set<TokenType> VALID_STATEMENT_ENDS = Set.of(RIGHT_BRACE, SEMICOLON, NEW_LINE, EOF);
+
+    private final boolean debug;
     private final List<Token> tokens;
     private int current = 0;
 
     public @NotNull List<Stmt> parse() {
         List<Stmt> statements = new ArrayList<>();
 
-        while (!isAtEnd()) {
-            // eat new lines
-            while (advanceIfAny(NEW_LINE)) { }
-
-            if (isAtEnd()) {
-                break;
-            }
-
-            statements.add(statement());
+        while (!eatBlankLines()) {
+            statements.add(declaration());
+            advanceExpressionEnd();
         }
 
         return statements;
     }
 
-    private Stmt statement() {
-        if (advanceIfAny(PRINT)) {
-            return printStatement();
+    private List<Stmt> block() {
+        List<Stmt> statements = new ArrayList<>();
+
+        while (!eatBlankLines()) {
+            if (peekIs(RIGHT_BRACE)) {
+                break;
+            }
+
+            statements.add(declaration());
+            advanceExpressionEnd();
         }
+
+        advanceExpectToken(RIGHT_BRACE, "after block");
+        return statements;
+    }
+
+    private Stmt declaration() {
+        try {
+            if (advanceIfAny(VAR)) {
+                return mutableDeclaration();
+            }
+
+            return statement();
+        } catch (SyntaxError error) {
+            // @Todo(Jok): BAD!
+            if (debug) {
+                error.printStackTrace();
+            }
+
+            synchronize();
+            return null;
+        }
+    }
+
+    private Stmt mutableDeclaration() {
+        Token identifier = advanceExpectToken(IDENTIFIER);
+
+        // mutables don't support inferred types currently
+        errorIfPeekIs("Missing type for `^` or `var` definition", INFERRED_DECLARATION_TYPE);
+
+        advanceExpectToken(COLON, "in var definition");
+
+        Token type = advanceExpectToken("type identifier", IDENTIFIER, "after ':' in var definition");
+
+        advanceExpectToken(EQUALS, "in var definition");
+
+        Expr initializer = expression();
+        return new Stmt.VariableDeclaration(identifier, type, initializer, true);
+    }
+
+    private Stmt statement() {
+        if (advanceIfAny(PRINT)) return printStatement();
+
+        // block statements
+        if (advanceThroughIfConsecutive(BLOCK, LEFT_BRACE)) return new Stmt.Block(block());
 
         return expressionStatement();
     }
 
     private Stmt printStatement() {
         Expr value = expression();
-        advanceIfAnyOrError("Unexpected {peekNext} following expression", SEMICOLON, NEW_LINE, EOF);
         return new Stmt.Print(value);
     }
 
     private Stmt expressionStatement() {
         Expr value = expression();
-        advanceIfAnyOrError("Unexpected {peekNext} following expression", SEMICOLON, NEW_LINE, EOF);
         return new Stmt.Expression(value);
     }
 
+    private void advanceExpressionEnd() {
+        // } ends the expression
+        if (peekIs(RIGHT_BRACE)) {
+            return;
+        }
+
+        advanceIfAnyOrError("Unexpected {peek} following expression", SEMICOLON, NEW_LINE, EOF);
+    }
+
     private Expr expression() {
-        return equality();
+        return assignment();
+    }
+
+    private Expr assignment() {
+        Expr expr = equality();
+
+        if (advanceIfAny(EQUALS)) {
+            Expr value = assignment();
+
+            // @Todo(Jok) @Feat: add support for other assignment targets
+            if (expr instanceof Expr.Variable variable) {
+                Token name = variable.name;
+                return new Expr.Assign(name, value);
+            }
+
+            // @Todo(Jok): need a better error here
+            throw error("Invalid assignment target");
+        }
+
+        return expr;
     }
 
     private Expr equality() {
@@ -128,13 +203,18 @@ public class VerseParser {
             return new Expr.Literal(true);
         }
 
+
         if (advanceIfAny(NUMBER_INT, NUMBER_FLOAT, STRING)) {
             return new Expr.Literal(peekPrevious().literal);
         }
 
+        if (advanceIfAny(IDENTIFIER)) {
+            return new Expr.Variable(peekPrevious());
+        }
+
         if (advanceIfAny(LEFT_PAREN)) {
             Expr expr = expression();
-            advanceIfAnyOrError("Expected ')' after expression", RIGHT_PAREN);
+            advanceExpectToken(RIGHT_PAREN, "after expression");
             return new Expr.Grouping(expr);
         }
 
@@ -145,7 +225,7 @@ public class VerseParser {
         advance();
 
         while (!isAtEnd()) {
-            if (peekPrevious().type == SEMICOLON || peekPrevious().type == NEW_LINE) {
+            if (VALID_STATEMENT_ENDS.contains(peek().type)) {
                 return;
             }
 
@@ -160,22 +240,62 @@ public class VerseParser {
         }
     }
 
-    private boolean check(TokenType type) {
-        if (type != EOF && isAtEnd()) {
-            return false;
+    private boolean peekIs(TokenType type) {
+        if (isAtEnd()) {
+            return type == EOF;
         }
 
         return peek().type == type;
     }
 
-    private @Nullable Token checkIfAny(TokenType... anyOfTypes) {
+    private boolean errorIfPeekIs(String message, TokenType type) {
+        if (peekIs(type)) {
+            throw error(message);
+        }
+
+        return true;
+    }
+
+    private @Nullable Token peekIsAny(TokenType... anyOfTypes) {
         for (TokenType type : anyOfTypes) {
-            if (check(type)) {
+            if (peekIs(type)) {
                 return advance();
             }
         }
 
         return null;
+    }
+
+    private boolean peekIsConsecutive(TokenType... types) {
+        int advance = 0;
+        for (TokenType type : types) {
+            Token ahead = peek(advance);
+            if (ahead == null || ahead.type != type) {
+                return false;
+            }
+
+            advance++;
+        }
+
+        return true;
+    }
+
+    private boolean advanceThroughIfConsecutive(TokenType... types) {
+        int advance = 0;
+        for (TokenType type : types) {
+            Token ahead = peek(advance);
+            if (ahead == null || ahead.type != type) {
+                return false;
+            }
+
+            advance++;
+        }
+
+        for (int i = 0; i < advance; i++) {
+            advance();
+        }
+
+        return true;
     }
 
     private Token advance() {
@@ -187,16 +307,37 @@ public class VerseParser {
     }
 
     private boolean advanceIfAny(TokenType... anyOfTypes) {
-        return checkIfAny(anyOfTypes) != null;
+        return peekIsAny(anyOfTypes) != null;
+    }
+
+    private boolean eatBlankLines() {
+        while (advanceIfAny(NEW_LINE)) { }
+        return isAtEnd();
     }
 
     private Token advanceIfAnyOrError(String message, TokenType... anyOfTypes) {
-        Token token = checkIfAny(anyOfTypes);
+        Token token = peekIsAny(anyOfTypes);
         if (token != null) {
             return token;
         }
 
         throw error(message);
+    }
+
+    private Token advanceExpectToken(TokenType tokenType) {
+        return advanceExpectToken(tokenType, null);
+    }
+
+    private Token advanceExpectToken(TokenType tokenType, @Nullable String context) {
+        return advanceExpectToken(null, tokenType, context);
+    }
+
+    private Token advanceExpectToken(@Nullable String expectedName, TokenType tokenType, @Nullable String context) {
+        if (peekIs(tokenType)) {
+            return advance();
+        }
+
+        throw error("Expected " + (expectedName != null ? expectedName : tokenType) + (context != null ? " " + context : "") + ", instead got {peek}");
     }
 
     private boolean isAtEnd() {
@@ -205,6 +346,14 @@ public class VerseParser {
 
     private Token peek() {
         return tokens.get(current);
+    }
+
+    private @Nullable Token peek(int advance) {
+        if (current + advance >= tokens.size()) {
+            return null;
+        }
+
+        return tokens.get(current + advance);
     }
 
     private @Nullable Token peekNext() {

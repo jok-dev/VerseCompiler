@@ -33,4 +33,25 @@ public abstract class VNumber<T extends VNumber<T>> {
 
     @Override
     public abstract String toString();
+
+    public boolean greaterThan(VNumber<?> other) {
+        ensureSameType(other);
+        return getRawValue().doubleValue() > other.getRawValue().doubleValue();
+    }
+
+    public boolean greaterThanOrEqual(VNumber<?> other) {
+        ensureSameType(other);
+        return getRawValue().doubleValue() >= other.getRawValue().doubleValue();
+    }
+
+    public boolean lessThan(VNumber<?> other) {
+        ensureSameType(other);
+        return getRawValue().doubleValue() < other.getRawValue().doubleValue();
+    }
+
+    public boolean lessThanOrEqual(VNumber<?> other) {
+        ensureSameType(other);
+        return getRawValue().doubleValue() <= other.getRawValue().doubleValue();
+    }
+
 }
