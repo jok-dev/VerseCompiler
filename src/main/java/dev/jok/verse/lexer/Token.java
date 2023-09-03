@@ -9,6 +9,7 @@ public class Token {
     public final String lexeme;
     public final Object literal;
     public final int line;
+    public final int col;
 
     @Override
     public String toString() {

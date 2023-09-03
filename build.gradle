@@ -3,7 +3,7 @@ plugins {
 }
 
 group = 'org.example'
-version = '1.0-SNAPSHOT'
+version = '1.0.0'
 
 repositories {
     mavenCentral()
@@ -17,6 +17,9 @@ dependencies {
 
     annotationProcessor 'org.projectlombok:lombok:1.18.26'
 }
+
+sourceCompatibility = 17
+targetCompatibility = 17
 
 test {
     useJUnitPlatform()

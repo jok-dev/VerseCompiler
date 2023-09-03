@@ -24,6 +24,13 @@ public class VerseParser {
         List<Stmt> statements = new ArrayList<>();
 
         while (!isAtEnd()) {
+            // eat new lines
+            while (advanceIfAny(NEW_LINE)) { }
+
+            if (isAtEnd()) {
+                break;
+            }
+
             statements.add(statement());
         }
 
@@ -40,13 +47,13 @@ public class VerseParser {
 
     private Stmt printStatement() {
         Expr value = expression();
-        consumeOrError(SEMICOLON, "Expected ';' after value");
+        advanceIfAnyOrError("Unexpected {peekNext} following expression", SEMICOLON, NEW_LINE, EOF);
         return new Stmt.Print(value);
     }
 
     private Stmt expressionStatement() {
         Expr value = expression();
-        consumeOrError(SEMICOLON, "Expected ';' after value");
+        advanceIfAnyOrError("Unexpected {peekNext} following expression", SEMICOLON, NEW_LINE, EOF);
         return new Stmt.Expression(value);
     }
 
@@ -58,7 +65,7 @@ public class VerseParser {
         Expr expr = comparison();
 
         while (advanceIfAny(EQUALS)) {
-            Token operator = previous();
+            Token operator = peekPrevious();
             Expr right = comparison();
             expr = new Expr.Binary(expr, operator, right);
         }
@@ -70,7 +77,7 @@ public class VerseParser {
         Expr expr = addition();
 
         while (advanceIfAny(GREATER, GREATER_EQUAL, LESS, LESS_EQUAL)) {
-            Token operator = previous();
+            Token operator = peekPrevious();
             Expr right = addition();
             expr = new Expr.Binary(expr, operator, right);
         }
@@ -82,7 +89,7 @@ public class VerseParser {
         Expr expr = multiplication();
 
         while (advanceIfAny(PLUS, MINUS)) {
-            Token operator = previous();
+            Token operator = peekPrevious();
             Expr right = multiplication();
             expr = new Expr.Binary(expr, operator, right);
         }
@@ -94,7 +101,7 @@ public class VerseParser {
         Expr expr = unary();
 
         while (advanceIfAny(STAR, SLASH)) {
-            Token operator = previous();
+            Token operator = peekPrevious();
             Expr right = unary();
             expr = new Expr.Binary(expr, operator, right);
         }
@@ -103,9 +110,8 @@ public class VerseParser {
     }
 
     private Expr unary() {
-        // @Todo(Jok): implement "not" keyword
-        if (advanceIfAny(MINUS)) {
-            Token operator = previous();
+        if (advanceIfAny(MINUS, NOT)) {
+            Token operator = peekPrevious();
             Expr right = unary();
             return new Expr.Unary(operator, right);
         }
@@ -123,24 +129,23 @@ public class VerseParser {
         }
 
         if (advanceIfAny(NUMBER_INT, NUMBER_FLOAT, STRING)) {
-            return new Expr.Literal(previous().literal);
+            return new Expr.Literal(peekPrevious().literal);
         }
 
         if (advanceIfAny(LEFT_PAREN)) {
             Expr expr = expression();
-            consumeOrError(RIGHT_PAREN, "Expected ')' after expression");
+            advanceIfAnyOrError("Expected ')' after expression", RIGHT_PAREN);
             return new Expr.Grouping(expr);
         }
 
-        throw error(peek(), "Expected expression, instead got " + peek().type);
+        throw error("Expected expression, instead got {peek}");
     }
 
-    // @Todo(Jok) @Important: since semicolons are optional, this synchronization doesn't actually work for Verse
     private void synchronize() {
         advance();
 
         while (!isAtEnd()) {
-            if (previous().type == SEMICOLON) {
+            if (peekPrevious().type == SEMICOLON || peekPrevious().type == NEW_LINE) {
                 return;
             }
 
@@ -155,23 +160,22 @@ public class VerseParser {
         }
     }
 
-    private boolean advanceIfAny(TokenType... types) {
-        for (TokenType type : types) {
-            if (check(type)) {
-                advance();
-                return true;
-            }
-        }
-
-        return false;
-    }
-
     private boolean check(TokenType type) {
-        if (isAtEnd()) {
+        if (type != EOF && isAtEnd()) {
             return false;
         }
 
         return peek().type == type;
+    }
+
+    private @Nullable Token checkIfAny(TokenType... anyOfTypes) {
+        for (TokenType type : anyOfTypes) {
+            if (check(type)) {
+                return advance();
+            }
+        }
+
+        return null;
     }
 
     private Token advance() {
@@ -179,15 +183,20 @@ public class VerseParser {
             current++;
         }
 
-        return previous();
+        return peekPrevious();
     }
 
-    private Token consumeOrError(TokenType type, String message) {
-        if (peek().type == type) {
-            return advance();
+    private boolean advanceIfAny(TokenType... anyOfTypes) {
+        return checkIfAny(anyOfTypes) != null;
+    }
+
+    private Token advanceIfAnyOrError(String message, TokenType... anyOfTypes) {
+        Token token = checkIfAny(anyOfTypes);
+        if (token != null) {
+            return token;
         }
 
-        throw error(peek(), message);
+        throw error(message);
     }
 
     private boolean isAtEnd() {
@@ -198,15 +207,19 @@ public class VerseParser {
         return tokens.get(current);
     }
 
-    private Token previous() {
+    private @Nullable Token peekNext() {
+        return current + 1 >= tokens.size() ? null : tokens.get(current + 1);
+    }
+
+    private @NotNull Token peekPrevious() {
         return tokens.get(current - 1);
     }
 
-    private ParseError error(Token token, String message) {
-        VerseLang.syntaxError(token.line, message);
-        return new ParseError();
+    private SyntaxError error(String message) {
+        VerseLang.syntaxError(peek(), peekNext(), message);
+        return new SyntaxError();
     }
 
-    private static class ParseError extends RuntimeException { }
+    private static class SyntaxError extends RuntimeException { }
 
 }

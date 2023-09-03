@@ -1,6 +1,8 @@
 package dev.jok.verse.lexer;
 
 import dev.jok.verse.VerseLang;
+import dev.jok.verse.types.number.VFloat;
+import dev.jok.verse.types.number.VInteger;
 import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.Nullable;
 
@@ -15,6 +17,7 @@ public class VerseScanner {
     private int start = 0;
     private int current = 0;
     private int line = 1;
+    private int col = 1;
 
     public List<Token> scanTokens() {
         while (!isAtEnd()) {
@@ -42,6 +45,10 @@ public class VerseScanner {
             case '.' -> addToken(TokenType.DOT);
             case ';' -> addToken(TokenType.SEMICOLON);
             case ':' -> addToken(TokenType.COLON);
+            case '\n' -> {
+                addToken(TokenType.NEW_LINE);
+                newLine();
+            }
 
             case '=' -> addToken(TokenType.EQUALS);
             case '+' -> addToken(TokenType.PLUS);
@@ -57,7 +64,7 @@ public class VerseScanner {
             // # is comments
             case '#' -> advanceTillEol();
 
-            case ' ', '\r', '\t', '\n' -> {
+            case ' ', '\t', '\r' -> {
                 // Ignore whitespace.
             }
 
@@ -93,11 +100,11 @@ public class VerseScanner {
 
         String text = source.substring(start, current);
         if (isFloat) {
-            addToken(TokenType.NUMBER_FLOAT, Float.parseFloat(text));
+            addToken(TokenType.NUMBER_FLOAT, VFloat.parseFloat(text));
             return;
         }
 
-        addToken(TokenType.NUMBER_INT, Integer.parseInt(text));
+        addToken(TokenType.NUMBER_INT, VInteger.parseInt(text));
     }
 
     private void identifier() {
@@ -118,6 +125,7 @@ public class VerseScanner {
         if (text.equals("if")) type = TokenType.IF;
         if (text.equals("while")) type = TokenType.WHILE;
         if (text.equals("for")) type = TokenType.FOR;
+        if (text.equals("print")) type = TokenType.PRINT;
 
         addToken(type);
     }
@@ -125,7 +133,7 @@ public class VerseScanner {
     private void string() {
         while (peek() != '"' && !isAtEnd()) {
             if (peek() == '\n') {
-                line++;
+                newLine();
             }
 
             advance();
@@ -142,6 +150,11 @@ public class VerseScanner {
         // Trim the surrounding quotes
         String value = source.substring(start + 1, current - 1);
         addToken(TokenType.STRING, value);
+    }
+
+    private void newLine() {
+        line++;
+        col = 1;
     }
 
     private boolean isIdentifierStart(char c) {
@@ -169,6 +182,7 @@ public class VerseScanner {
     }
 
     private char advance() {
+        col++;
         return source.charAt(current++);
     }
 
@@ -192,7 +206,7 @@ public class VerseScanner {
 
     private void addToken(TokenType type, @Nullable Object literal) {
         String text = source.substring(start, current);
-        tokens.add(new Token(type, text, literal, line));
+        tokens.add(new Token(type, text, literal, line, col - (current - start)));
     }
 
     private boolean isAtEnd() {
@@ -200,7 +214,7 @@ public class VerseScanner {
     }
 
     private void error(String message) {
-        VerseLang.syntaxError(line, message);
+        VerseLang.syntaxError(line, col, message);
     }
 
 

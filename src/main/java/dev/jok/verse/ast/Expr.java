@@ -1,6 +1,7 @@
 package dev.jok.verse.ast;
 
 import dev.jok.verse.lexer.Token;
+import dev.jok.verse.util.AstPrinter;
 import lombok.RequiredArgsConstructor;
 
 public abstract class Expr {
@@ -65,6 +66,11 @@ public abstract class Expr {
             return visitor.visitUnaryExpr(this);
         }
 
+    }
+
+    @Override
+    public String toString() {
+        return new AstPrinter().print(this);
     }
 
 }

@@ -4,10 +4,10 @@ public enum TokenType {
 
     // Punctuation
     LEFT_PAREN, RIGHT_PAREN, LEFT_BRACE, RIGHT_BRACE, LEFT_BRACKET, RIGHT_BRACKET,
-    COMMA, DOT, SEMICOLON, COLON,
+    COMMA, DOT, SEMICOLON, COLON, NEW_LINE,
 
     // Math
-    EQUALS, PLUS, MINUS, STAR, SLASH,
+    EQUALS, PLUS, MINUS, STAR, SLASH, DEFINE_INFER_TYPE,
     GREATER, GREATER_EQUAL, LESS, LESS_EQUAL,
 
     // Literals
@@ -23,5 +23,10 @@ public enum TokenType {
     PRINT,
 
     EOF;
+
+    @Override
+    public String toString() {
+        return name().toLowerCase();
+    }
 
 }
