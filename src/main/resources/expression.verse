@@ -22,3 +22,15 @@ block {
 
 block {print Test;}
 block{print Test}; print HI
+
+OnBegin()
+OnBegin() : void = {
+    Print("Hi there {Name}")
+}
+
+
+OnBegin(Test : int, Test2 : int) : void = {
+    Print("Hi there {Name}")
+}
+
+OnBegin(Test, Test2)

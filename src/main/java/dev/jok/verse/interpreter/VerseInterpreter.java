@@ -24,14 +24,28 @@ public class VerseInterpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void
     }
 
     @Override
+    public Void visitExpressionStmt(Stmt.Expression expression) {
+        evaluate(expression.expression);
+        return null;
+    }
+
+    @Override
     public Void visitBlockStmt(Stmt.Block block) {
         return null;
     }
 
-    // @Todo(Jok) @Cleanup might be nice to separate these out?
     @Override
-    public Void visitExpressionStmt(Stmt.Expression expression) {
-        evaluate(expression.expression);
+    public Void visitFunctionStmt(Stmt.Function function) {
+        return null;
+    }
+
+    @Override
+    public Void visitParameterStmt(Stmt.Parameter parameter) {
+        return null;
+    }
+
+    @Override
+    public Void visitVariableDeclarationStmt(Stmt.VariableDeclaration variableDeclaration) {
         return null;
     }
 
@@ -39,11 +53,6 @@ public class VerseInterpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void
     public Void visitPrintStmt(Stmt.Print print) {
         Object value = evaluate(print.expression);
         System.out.println(value);
-        return null;
-    }
-
-    @Override
-    public Void visitVariableDeclarationStmt(Stmt.VariableDeclaration variableDeclaration) {
         return null;
     }
 
@@ -162,6 +171,11 @@ public class VerseInterpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void
         System.out.println(variable);
 
         return variable;
+    }
+
+    @Override
+    public Object visitCallExpr(Expr.Call call) {
+        return null;
     }
 
     private boolean isTruthy(Object obj) {

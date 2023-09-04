@@ -5,6 +5,7 @@ import dev.jok.verse.lexer.Token;
 import dev.jok.verse.util.AstPrinter;
 import lombok.RequiredArgsConstructor;
 
+import java.util.List;
 import java.util.Objects;
 
 public abstract class Expr {
@@ -19,6 +20,7 @@ public abstract class Expr {
         R visitLiteralExpr(Literal literal);
         R visitUnaryExpr(Unary unary);
         R visitVariableExpr(Variable variable);
+        R visitCallExpr(Call call);
 
     }
 
@@ -103,6 +105,19 @@ public abstract class Expr {
         @Override
         public <R> R accept(Visitor<R> visitor) {
             return visitor.visitVariableExpr(this);
+        }
+
+    }
+
+    @RequiredArgsConstructor
+    public static class Call extends Expr {
+
+        public final Expr callee;
+        public final List<Expr> arguments;
+
+        @Override
+        public <R> R accept(Visitor<R> visitor) {
+            return visitor.visitCallExpr(this);
         }
 
     }

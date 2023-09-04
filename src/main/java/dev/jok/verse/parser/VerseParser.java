@@ -35,7 +35,7 @@ public class VerseParser {
         return statements;
     }
 
-    private List<Stmt> block() {
+    private List<Stmt> anonymousBlock() {
         List<Stmt> statements = new ArrayList<>();
 
         while (!eatBlankLines()) {
@@ -57,6 +57,11 @@ public class VerseParser {
                 return mutableDeclaration();
             }
 
+            // function declaration
+            if (peekIsFunctionDeclaration()) {
+                return functionDeclaration();
+            }
+
             return statement();
         } catch (SyntaxError error) {
             // @Todo(Jok): BAD!
@@ -66,6 +71,63 @@ public class VerseParser {
 
             synchronize();
             return null;
+        }
+    }
+
+    private Stmt functionDeclaration() {
+        Token name = advanceExpectToken(IDENTIFIER, "in function declaration");
+        advanceExpectToken(LEFT_PAREN, "in function declaration");
+
+        List<Stmt.Parameter> parameters = new ArrayList<>();
+        if (!peekIs(RIGHT_PAREN)) {
+            do {
+                if (parameters.size() >= 255) {
+                    throw error("Cannot have more than 255 parameters");
+                }
+
+                Token parameterName = advanceExpectToken(IDENTIFIER, "in function declaration");
+                advanceExpectToken(COLON, "in function parameter declaration");
+                Token parameterType = advanceExpectToken(IDENTIFIER, "in function parameter declaration");
+
+                parameters.add(new Stmt.Parameter(parameterName, parameterType));
+            } while (advanceIfAny(COMMA));
+        }
+
+        advanceExpectToken(RIGHT_PAREN, "in function declaration");
+        advanceExpectToken(COLON, "in function declaration");
+        Token returnType = advanceExpectToken("return type", IDENTIFIER, "in function declaration");
+        advanceExpectToken(EQUALS, "in function declaration");
+
+        // @Todo(Jok): don't enforce braces
+        advanceExpectToken(LEFT_BRACE, "in function declaration");
+        List<Stmt> body = anonymousBlock();
+
+        return new Stmt.Function(name, returnType, parameters, body);
+    }
+
+    private boolean peekIsFunctionDeclaration() {
+        if (!peekIsConsecutive(IDENTIFIER, LEFT_PAREN)) {
+            return false;
+        }
+
+        int advance = 2;
+        while (true) {
+            Token ahead = peek(advance);
+            if (ahead == null) {
+                return false;
+            }
+
+            if (ahead.type == RIGHT_PAREN) {
+                Token after = peek(advance + 1);
+                return after != null && after.type == COLON;
+            }
+
+            // if the statement ends, it's not a function declaration
+            if (VALID_STATEMENT_ENDS.contains(ahead.type)) {
+                return false;
+            }
+
+            advance++;
         }
     }
 
@@ -89,7 +151,9 @@ public class VerseParser {
         if (advanceIfAny(PRINT)) return printStatement();
 
         // block statements
-        if (advanceThroughIfConsecutive(BLOCK, LEFT_BRACE)) return new Stmt.Block(block());
+        if (advanceThroughIfConsecutive(BLOCK, LEFT_BRACE)) return new Stmt.Block(anonymousBlock());
+
+
 
         return expressionStatement();
     }
@@ -191,7 +255,39 @@ public class VerseParser {
             return new Expr.Unary(operator, right);
         }
 
-        return primary();
+        return call();
+    }
+
+    private Expr call() {
+        Expr expr = primary();
+
+        while (true) {
+            if (advanceIfAny(LEFT_PAREN)) {
+                expr = finishCall(expr);
+            } else {
+                break;
+            }
+        }
+
+        return expr;
+    }
+
+    private Expr finishCall(Expr callee) {
+        List<Expr> arguments = new ArrayList<>();
+
+        if (!peekIs(RIGHT_PAREN)) {
+            do {
+                if (arguments.size() >= 255) {
+                    throw error("Cannot have more than 255 arguments");
+                }
+
+                arguments.add(expression());
+            } while (advanceIfAny(COMMA));
+        }
+
+        advanceExpectToken(RIGHT_PAREN, "after function arguments");
+
+        return new Expr.Call(callee, arguments);
     }
 
     private Expr primary() {
@@ -202,7 +298,6 @@ public class VerseParser {
         if (advanceIfAny(TRUE)) {
             return new Expr.Literal(true);
         }
-
 
         if (advanceIfAny(NUMBER_INT, NUMBER_FLOAT, STRING)) {
             return new Expr.Literal(peekPrevious().literal);

@@ -3,6 +3,7 @@ package dev.jok.verse.util;
 import dev.jok.verse.ast.Expr;
 import dev.jok.verse.ast.Stmt;
 
+import java.util.List;
 import java.util.Objects;
 
 public class AstPrinter implements Expr.Visitor<String>, Stmt.Visitor<String> {
@@ -16,21 +17,38 @@ public class AstPrinter implements Expr.Visitor<String>, Stmt.Visitor<String> {
     }
 
     @Override
+    public String visitExpressionStmt(Stmt.Expression expression) {
+        return expression.expression.accept(this);
+    }
+
+    @Override
     public String visitBlockStmt(Stmt.Block block) {
         StringBuilder builder = new StringBuilder();
 
         builder.append("{\n");
-        for (Stmt stmt : block.statements) {
-            builder.append(stmt.accept(this)).append("\n");
-        }
+        appendStatements(block.statements, builder);
         builder.append("}");
 
         return builder.toString();
     }
 
     @Override
-    public String visitExpressionStmt(Stmt.Expression expression) {
-        return expression.expression.accept(this);
+    public String visitFunctionStmt(Stmt.Function function) {
+        StringBuilder builder = new StringBuilder();
+
+        builder.append(function.name.lexeme).append("(");
+        appendCommaSeperatedStatements(function.parameters, builder);
+
+        builder.append(") : ").append(function.returnType.lexeme).append(" {\n");
+        appendStatements(function.body, builder);
+        builder.append("}");
+
+        return builder.toString();
+    }
+
+    @Override
+    public String visitParameterStmt(Stmt.Parameter parameter) {
+        return parameter.name.lexeme + " : " + parameter.type.lexeme;
     }
 
     @Override
@@ -76,6 +94,43 @@ public class AstPrinter implements Expr.Visitor<String>, Stmt.Visitor<String> {
     @Override
     public String visitVariableExpr(Expr.Variable variable) {
         return variable.name.lexeme;
+    }
+
+    @Override
+    public String visitCallExpr(Expr.Call call) {
+        StringBuilder builder = new StringBuilder();
+
+        builder.append(call.callee.accept(this)).append("(");
+        appendCommaSeperatedExpressions(call.arguments, builder);
+        builder.append(")");
+
+        return builder.toString();
+    }
+
+    private void appendCommaSeperatedStatements(List<? extends Stmt> statements, StringBuilder builder) {
+        for (int i = 0; i < statements.size(); i++) {
+            Stmt stmt = statements.get(i);
+            builder.append(stmt.accept(this));
+            if (i != statements.size() - 1) {
+                builder.append(", ");
+            }
+        }
+    }
+
+    private void appendCommaSeperatedExpressions(List<? extends Expr> expressions, StringBuilder builder) {
+        for (int i = 0; i < expressions.size(); i++) {
+            Expr expr = expressions.get(i);
+            builder.append(expr.accept(this));
+            if (i != expressions.size() - 1) {
+                builder.append(", ");
+            }
+        }
+    }
+
+    private void appendStatements(List<Stmt> statements, StringBuilder builder) {
+        for (Stmt stmt : statements) {
+            builder.append(stmt.accept(this)).append("\n");
+        }
     }
 
     private String parenthesize(String name, Expr... exprs) {

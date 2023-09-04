@@ -47,7 +47,15 @@ public class VerseLang {
         String fileContent = Files.readString(file.toPath());
         List<Token> tokens = new VerseScanner(fileContent).scanTokens();
         VerseParser parser = new VerseParser(true, tokens);
-        List<Stmt> statements = parser.parse();
+
+        List<Stmt> statements;
+        try {
+            statements = parser.parse();
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error while parsing", e);
+            // @Todo(Jok): exit codes
+            return;
+        }
 
         if (hadSyntaxError) {
             // @Todo(Jok): exit codes
