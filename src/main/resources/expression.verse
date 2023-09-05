@@ -5,23 +5,25 @@ var TestVariable : int = 12
 
 var Test : float = 12
 
-print not (23.2 / 2.0 >= 23.2 / 3.0); print "TT"
-print "This is a test"
+Print(not (23.2 / 2.0 >= 23.2 / 3.0)); Print("TT")
+Print("This is a test")
 
 
 Test = 12
+
+block {}
 
 block {
 
 
 
 
-    print Test
+    Print(Test)
 }
 
 
-block {print Test;}
-block{print Test}; print HI
+block {Print(Test);}
+block{Print(Test)}; Print(hi)
 
 OnBegin()
 OnBegin() : void = {
@@ -31,6 +33,26 @@ OnBegin() : void = {
 
 OnBegin(Test : int, Test2 : int) : void = {
     Print("Hi there {Name}")
+    T
+}
+
+Begin()<suspends> : param = {
+    Deactivate()
 }
 
 OnBegin(Test, Test2)
+
+var DeviceRoutines : routine = 10
+
+var DeviceRoutines : []routine = 10
+
+var DeviceRoutines : []?routine = 10
+
+var DeviceRoutines : [int]?routine = 10
+
+var DeviceRoutines : [[[]int]int]?routine = 10
+
+
+
+# comment
+

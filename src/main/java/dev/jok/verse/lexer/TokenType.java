@@ -7,10 +7,10 @@ public enum TokenType {
 
     // Punctuation
     LEFT_PAREN("("), RIGHT_PAREN(")"), LEFT_BRACE("{"), RIGHT_BRACE("}"), LEFT_BRACKET("["), RIGHT_BRACKET("]"),
-    COMMA(","), DOT("."), SEMICOLON(";"), COLON(":"), NEW_LINE("\\n"),
+    COMMA(","), DOT("."), SEMICOLON(";"), COLON(":"), QUESTION_MARK("?"), NEW_LINE("\\n"),
 
     // Math
-    EQUALS("="), PLUS("+"), MINUS("-"), STAR("*"), SLASH("/"), INFERRED_DECLARATION_TYPE(":="),
+    EQUALS("="), PLUS("+"), MINUS("-"), STAR("*"), SLASH("/"), INFERRED_DECL(":="),
     GREATER(">"), GREATER_EQUAL(">="), LESS("<"), LESS_EQUAL("<="),
 
     // Literals
@@ -19,14 +19,25 @@ public enum TokenType {
     // Keywords
     AND, OR, NOT, TRUE, FALSE,
     VAR, RETURN, SELF,
-    IF, WHILE, FOR,
+    IF, WHILE, FOR, BREAK,
+
+    // Effects
+    TRANSACTS, VARIES, COMPUTES, CONVERGES,
+
+    // Effect specifiers
+    SUSPENDS, DECIDES,
+
+    // Access specifiers
+    PUBLIC, INTERNAL, PROTECTED, PRIVATE,
+
+    // Attributes
+    OVERRIDE, ABSTRACT, FINAL, UNIQUE,
+
+    // Reserved keywords
+    CONTINUE, YIELD,
 
     // Block statements
     BLOCK, SPAWN,
-
-    // @Todo(Jok): remove
-    // Temporary
-    PRINT,
 
     EOF;
 

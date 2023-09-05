@@ -2,7 +2,9 @@ package dev.jok.verse.parser;
 
 import dev.jok.verse.ast.Expr;
 import dev.jok.verse.VerseLang;
-import dev.jok.verse.ast.Stmt;
+import dev.jok.verse.ast.types.*;
+import dev.jok.verse.ast.types.decl.AstFunctionDecl;
+import dev.jok.verse.ast.types.decl.AstVariableDecl;
 import dev.jok.verse.lexer.Token;
 import dev.jok.verse.lexer.TokenType;
 import lombok.RequiredArgsConstructor;
@@ -24,8 +26,8 @@ public class VerseParser {
     private final List<Token> tokens;
     private int current = 0;
 
-    public @NotNull List<Stmt> parse() {
-        List<Stmt> statements = new ArrayList<>();
+    public @NotNull List<AstStmt> parse() {
+        List<AstStmt> statements = new ArrayList<>();
 
         while (!eatBlankLines()) {
             statements.add(declaration());
@@ -35,8 +37,8 @@ public class VerseParser {
         return statements;
     }
 
-    private List<Stmt> anonymousBlock() {
-        List<Stmt> statements = new ArrayList<>();
+    private List<AstStmt> anonymousBlock() {
+        List<AstStmt> statements = new ArrayList<>();
 
         while (!eatBlankLines()) {
             if (peekIs(RIGHT_BRACE)) {
@@ -51,15 +53,12 @@ public class VerseParser {
         return statements;
     }
 
-    private Stmt declaration() {
+    private AstStmt declaration() {
         try {
-            if (advanceIfAny(VAR)) {
-                return mutableDeclaration();
-            }
-
-            // function declaration
-            if (peekIsFunctionDeclaration()) {
-                return functionDeclaration();
+            boolean isVar = advanceIfAny(VAR);
+            AstStmt node = maybeDecl(isVar);
+            if (node != null) {
+                return node;
             }
 
             return statement();
@@ -74,98 +73,115 @@ public class VerseParser {
         }
     }
 
-    private Stmt functionDeclaration() {
-        Token name = advanceExpectToken(IDENTIFIER, "in function declaration");
+    private @Nullable AstStmt maybeDecl(boolean mutableVar) {
+        if (peekExpectConditional(mutableVar, "Expected identifier after `var`", IDENTIFIER)
+                && (peekNextIs(COLON) || peekNextIs(LESS) || peekNextIs(LEFT_PAREN))) {
+            Token name = advanceExpectToken(IDENTIFIER, "in declaration");
+            List<AstType> specifiers = maybeSpecifiers("in declaration");
+
+            if (mutableVar || peekIs(COLON)) {
+                return variableDecl(mutableVar, name, specifiers);
+            }
+
+            if (!peekIs(LEFT_PAREN)) {
+                throw error("Expected definition but found {peek}");
+            }
+
+            // must be a function
+            return functionDecl(name, specifiers);
+        }
+
+        return null;
+    }
+
+    private AstFunctionDecl functionDecl(Token name, List<AstType> specifiers) {
+        List<AstType> effects = maybeSpecifiers("in function declaration");
+
         advanceExpectToken(LEFT_PAREN, "in function declaration");
 
-        List<Stmt.Parameter> parameters = new ArrayList<>();
+        // parse parameters
+        List<AstParameter> parameters = new ArrayList<>();
         if (!peekIs(RIGHT_PAREN)) {
             do {
-                if (parameters.size() >= 255) {
-                    throw error("Cannot have more than 255 parameters");
-                }
+                Token parameterName = advanceExpectToken(IDENTIFIER, "in parameter declaration");
+                advanceExpectToken(COLON, "in parameter declaration");
+                AstType parameterType = type("in parameter declaration");
 
-                Token parameterName = advanceExpectToken(IDENTIFIER, "in function declaration");
-                advanceExpectToken(COLON, "in function parameter declaration");
-                Token parameterType = advanceExpectToken(IDENTIFIER, "in function parameter declaration");
-
-                parameters.add(new Stmt.Parameter(parameterName, parameterType));
+                parameters.add(new AstParameter(parameterName, parameterType));
             } while (advanceIfAny(COMMA));
         }
 
         advanceExpectToken(RIGHT_PAREN, "in function declaration");
         advanceExpectToken(COLON, "in function declaration");
-        Token returnType = advanceExpectToken("return type", IDENTIFIER, "in function declaration");
+        AstType type = type("in function declaration");
         advanceExpectToken(EQUALS, "in function declaration");
 
-        // @Todo(Jok): don't enforce braces
-        advanceExpectToken(LEFT_BRACE, "in function declaration");
-        List<Stmt> body = anonymousBlock();
+        // @Todo(Jok): don't require braces {  }
+        advanceExpectToken(LEFT_BRACE);
+        List<AstStmt> body = anonymousBlock();
 
-        return new Stmt.Function(name, returnType, parameters, body);
+        return new AstFunctionDecl(name, specifiers, effects, parameters, type, body);
     }
 
-    private boolean peekIsFunctionDeclaration() {
-        if (!peekIsConsecutive(IDENTIFIER, LEFT_PAREN)) {
-            return false;
-        }
-
-        int advance = 2;
-        while (true) {
-            Token ahead = peek(advance);
-            if (ahead == null) {
-                return false;
-            }
-
-            if (ahead.type == RIGHT_PAREN) {
-                Token after = peek(advance + 1);
-                return after != null && after.type == COLON;
-            }
-
-            // if the statement ends, it's not a function declaration
-            if (VALID_STATEMENT_ENDS.contains(ahead.type)) {
-                return false;
-            }
-
-            advance++;
-        }
-    }
-
-    private Stmt mutableDeclaration() {
-        Token identifier = advanceExpectToken(IDENTIFIER);
-
+    private AstVariableDecl variableDecl(boolean mutableVar, Token identifier, List<AstType> specifiers) {
         // mutables don't support inferred types currently
-        errorIfPeekIs("Missing type for `^` or `var` definition", INFERRED_DECLARATION_TYPE);
+        peekExpectConditional(mutableVar, "Missing type for `^` or `var` definition", INFERRED_DECL);
 
-        advanceExpectToken(COLON, "in var definition");
+        // @Todo(Jok): allow immutables to have inferred types
 
-        Token type = advanceExpectToken("type identifier", IDENTIFIER, "after ':' in var definition");
+        advanceExpectToken(COLON, "in variable definition");
 
-        advanceExpectToken(EQUALS, "in var definition");
+        AstType type = type("in variable definition");
+
+        advanceExpectToken(EQUALS, "in variable definition");
 
         Expr initializer = expression();
-        return new Stmt.VariableDeclaration(identifier, type, initializer, true);
+        return new AstVariableDecl(identifier, specifiers, type, initializer, true);
     }
 
-    private Stmt statement() {
-        if (advanceIfAny(PRINT)) return printStatement();
+    private List<AstType> maybeSpecifiers(String context) {
+        List<AstType> specifiers = new ArrayList<>();
+        if (advanceIfAny(LESS)) {
+            do {
+                specifiers.add(type(context));
+                advanceExpectToken(GREATER, "after specifier name");
+            } while (advanceIfAny(LESS));
+        }
 
+        return specifiers;
+    }
+
+    private AstType type(String context) {
+        boolean array = false;
+        boolean map = false;
+        AstType keyType = null;
+
+        if (advanceIfAny(LEFT_BRACKET)) {
+            if (!peekIs(RIGHT_BRACKET)) {
+                map = true;
+                keyType = type("in map declaration");
+            } else {
+                array = true;
+            }
+
+            advanceExpectToken(RIGHT_BRACKET, "in type declaration");
+        }
+
+        boolean optional = advanceIfAny(QUESTION_MARK);
+        Token name = advanceExpectToken("type", IDENTIFIER, context);
+        return new AstType(name, array, map, keyType, optional);
+    }
+
+    private AstStmt statement() {
         // block statements
-        if (advanceThroughIfConsecutive(BLOCK, LEFT_BRACE)) return new Stmt.Block(anonymousBlock());
+        if (advanceThroughIfConsecutive(BLOCK, LEFT_BRACE)) return new AstBlock(anonymousBlock());
 
-
-
-        return expressionStatement();
+        return expressionStmt();
     }
 
-    private Stmt printStatement() {
+    private AstStmt expressionStmt() {
         Expr value = expression();
-        return new Stmt.Print(value);
-    }
-
-    private Stmt expressionStatement() {
-        Expr value = expression();
-        return new Stmt.Expression(value);
+        return new AstExpressionStmt(value);
     }
 
     private void advanceExpressionEnd() {
@@ -174,7 +190,7 @@ public class VerseParser {
             return;
         }
 
-        advanceIfAnyOrError("Unexpected {peek} following expression", SEMICOLON, NEW_LINE, EOF);
+        advanceExpectAny("Unexpected {peek} following expression", SEMICOLON, NEW_LINE, EOF);
     }
 
     private Expr expression() {
@@ -335,6 +351,14 @@ public class VerseParser {
         }
     }
 
+    private boolean peekIs(int offset, TokenType type) {
+        if (isAtEnd()) {
+            return type == EOF;
+        }
+
+        return peek().type == type;
+    }
+
     private boolean peekIs(TokenType type) {
         if (isAtEnd()) {
             return type == EOF;
@@ -343,12 +367,28 @@ public class VerseParser {
         return peek().type == type;
     }
 
-    private boolean errorIfPeekIs(String message, TokenType type) {
+    private boolean peekNextIs(TokenType tokenType) {
+        if (isAtEnd()) {
+            return tokenType == EOF;
+        }
+
+        return peekNext().type == tokenType;
+    }
+
+    private void errorIfPeekIs(String message, TokenType type) {
         if (peekIs(type)) {
             throw error(message);
         }
+    }
 
-        return true;
+    private boolean peekExpectConditional(boolean shouldError, String message, TokenType type) {
+        boolean is = peekIs(type);
+
+        if (shouldError && is) {
+            throw error(message);
+        }
+
+        return is;
     }
 
     private @Nullable Token peekIsAny(TokenType... anyOfTypes) {
@@ -410,7 +450,7 @@ public class VerseParser {
         return isAtEnd();
     }
 
-    private Token advanceIfAnyOrError(String message, TokenType... anyOfTypes) {
+    private Token advanceExpectAny(String message, TokenType... anyOfTypes) {
         Token token = peekIsAny(anyOfTypes);
         if (token != null) {
             return token;
@@ -439,24 +479,35 @@ public class VerseParser {
         return peek().type == EOF;
     }
 
-    private Token peek() {
-        return tokens.get(current);
-    }
-
-    private @Nullable Token peek(int advance) {
-        if (current + advance >= tokens.size()) {
-            return null;
+    private @NotNull Token peek() {
+        Token peek = peek(0);
+        if (peek == null) {
+            throw new IllegalStateException("Advanced over EOF");
         }
 
-        return tokens.get(current + advance);
+        return peek;
     }
 
     private @Nullable Token peekNext() {
-        return current + 1 >= tokens.size() ? null : tokens.get(current + 1);
+        return peek(1);
     }
 
     private @NotNull Token peekPrevious() {
-        return tokens.get(current - 1);
+        Token peek = peek(-1);
+        if (peek == null) {
+            throw new IllegalStateException("Cannot peek previous when at start of file");
+        }
+
+        return peek;
+    }
+
+    private @Nullable Token peek(int advance) {
+        int pos = current + advance;
+        if (pos >= tokens.size() || pos < 0) {
+            return null;
+        }
+
+        return tokens.get(pos);
     }
 
     private SyntaxError error(String message) {

@@ -21,6 +21,7 @@ public abstract class Expr {
         R visitUnaryExpr(Unary unary);
         R visitVariableExpr(Variable variable);
         R visitCallExpr(Call call);
+        R visitTypeExpr(Type type);
 
     }
 
@@ -118,6 +119,27 @@ public abstract class Expr {
         @Override
         public <R> R accept(Visitor<R> visitor) {
             return visitor.visitCallExpr(this);
+        }
+
+    }
+
+    @RequiredArgsConstructor
+    public static class Type extends Expr {
+
+    	public final Token name;
+        public final boolean array;
+        public final boolean map;
+        public final Type keyType;
+        public final boolean optional;
+
+    	@Override
+    	public <R> R accept(Visitor<R> visitor) {
+    		return visitor.visitTypeExpr(this);
+    	}
+
+        @Override
+        public String toString() {
+            return (array ? "[]" : "") + (map ? "[" + keyType + "]" : "") + (optional ? "?" : "") + name.lexeme;
         }
 
     }

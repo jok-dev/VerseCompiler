@@ -1,6 +1,6 @@
 package dev.jok.verse;
 
-import dev.jok.verse.ast.Stmt;
+import dev.jok.verse.ast.types.AstStmt;
 import dev.jok.verse.interpreter.VerseInterpreter;
 import dev.jok.verse.lexer.Token;
 import dev.jok.verse.lexer.VerseScanner;
@@ -46,9 +46,9 @@ public class VerseLang {
 
         String fileContent = Files.readString(file.toPath());
         List<Token> tokens = new VerseScanner(fileContent).scanTokens();
-        VerseParser parser = new VerseParser(true, tokens);
+        VerseParser parser = new VerseParser(false, tokens);
 
-        List<Stmt> statements;
+        List<AstStmt> statements;
         try {
             statements = parser.parse();
         } catch (Exception e) {
@@ -65,7 +65,7 @@ public class VerseLang {
         LOGGER.log(Level.INFO, "Parsed " + statements.size() + " statements");
 
         try (BufferedWriter writer = new BufferedWriter(new FileWriter("out.txt"))) {
-            for (Stmt stmt : statements) {
+            for (AstStmt stmt : statements) {
                 writer.write(PRINTER.print(stmt));
                 writer.newLine();
             }

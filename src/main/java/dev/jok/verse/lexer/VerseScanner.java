@@ -44,7 +44,8 @@ public class VerseScanner {
             case ',' -> addToken(TokenType.COMMA);
             case '.' -> addToken(TokenType.DOT);
             case ';' -> addToken(TokenType.SEMICOLON);
-            case ':' -> addToken(advanceIf('=') ? TokenType.INFERRED_DECLARATION_TYPE : TokenType.COLON);
+            case ':' -> addToken(advanceIf('=') ? TokenType.INFERRED_DECL : TokenType.COLON);
+            case '?' -> addToken(TokenType.QUESTION_MARK);
             case '\n' -> {
                 addToken(TokenType.NEW_LINE);
                 newLine();
@@ -126,9 +127,6 @@ public class VerseScanner {
         if (text.equals("while")) type = TokenType.WHILE;
         if (text.equals("for")) type = TokenType.FOR;
         if (text.equals("block")) type = TokenType.BLOCK;
-
-        // @Todo(Jok): remove
-        if (text.equals("print")) type = TokenType.PRINT;
 
         addToken(type);
     }

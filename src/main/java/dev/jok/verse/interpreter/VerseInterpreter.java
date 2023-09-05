@@ -1,20 +1,23 @@
 package dev.jok.verse.interpreter;
 
+import dev.jok.verse.ast.AstVisitor;
 import dev.jok.verse.ast.Expr;
-import dev.jok.verse.ast.Stmt;
+import dev.jok.verse.ast.types.*;
+import dev.jok.verse.ast.types.decl.AstFunctionDecl;
+import dev.jok.verse.ast.types.decl.AstVariableDecl;
 import dev.jok.verse.types.number.VNumber;
 
 import java.util.List;
 
-public class VerseInterpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void> {
+public class VerseInterpreter implements Expr.Visitor<Object>, AstVisitor<Void> {
 
-    public void interpret(List<Stmt> statements) {
-        for (Stmt stmt : statements) {
+    public void interpret(List<AstStmt> statements) {
+        for (AstStmt stmt : statements) {
             interpret(stmt);
         }
     }
 
-    private void interpret(Stmt stmt) {
+    private void interpret(AstStmt stmt) {
         stmt.accept(this);
     }
 
@@ -24,35 +27,33 @@ public class VerseInterpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void
     }
 
     @Override
-    public Void visitExpressionStmt(Stmt.Expression expression) {
+    public Void visitExpressionStmt(AstExpressionStmt expression) {
         evaluate(expression.expression);
         return null;
     }
 
     @Override
-    public Void visitBlockStmt(Stmt.Block block) {
+    public Void visitBlock(AstBlock block) {
         return null;
     }
 
     @Override
-    public Void visitFunctionStmt(Stmt.Function function) {
+    public Void visitTypeExpr(AstType type) {
         return null;
     }
 
     @Override
-    public Void visitParameterStmt(Stmt.Parameter parameter) {
+    public Void visitFunctionDecl(AstFunctionDecl function) {
         return null;
     }
 
     @Override
-    public Void visitVariableDeclarationStmt(Stmt.VariableDeclaration variableDeclaration) {
+    public Void visitParameter(AstParameter parameter) {
         return null;
     }
 
     @Override
-    public Void visitPrintStmt(Stmt.Print print) {
-        Object value = evaluate(print.expression);
-        System.out.println(value);
+    public Void visitVariableDecl(AstVariableDecl variableDeclaration) {
         return null;
     }
 
@@ -175,6 +176,11 @@ public class VerseInterpreter implements Expr.Visitor<Object>, Stmt.Visitor<Void
 
     @Override
     public Object visitCallExpr(Expr.Call call) {
+        return null;
+    }
+
+    @Override
+    public Object visitTypeExpr(Expr.Type type) {
         return null;
     }
 

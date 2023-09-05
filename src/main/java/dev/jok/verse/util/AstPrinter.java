@@ -1,28 +1,32 @@
 package dev.jok.verse.util;
 
+import dev.jok.verse.ast.AstNode;
+import dev.jok.verse.ast.AstVisitor;
 import dev.jok.verse.ast.Expr;
-import dev.jok.verse.ast.Stmt;
+import dev.jok.verse.ast.types.*;
+import dev.jok.verse.ast.types.decl.AstFunctionDecl;
+import dev.jok.verse.ast.types.decl.AstVariableDecl;
 
 import java.util.List;
 import java.util.Objects;
 
-public class AstPrinter implements Expr.Visitor<String>, Stmt.Visitor<String> {
+public class AstPrinter implements Expr.Visitor<String>, AstVisitor<String> {
 
     public String print(Expr expr) {
         return expr.accept(this);
     }
 
-    public String print(Stmt stmt) {
+    public String print(AstStmt stmt) {
         return stmt.accept(this);
     }
 
     @Override
-    public String visitExpressionStmt(Stmt.Expression expression) {
+    public String visitExpressionStmt(AstExpressionStmt expression) {
         return expression.expression.accept(this);
     }
 
     @Override
-    public String visitBlockStmt(Stmt.Block block) {
+    public String visitBlock(AstBlock block) {
         StringBuilder builder = new StringBuilder();
 
         builder.append("{\n");
@@ -33,13 +37,18 @@ public class AstPrinter implements Expr.Visitor<String>, Stmt.Visitor<String> {
     }
 
     @Override
-    public String visitFunctionStmt(Stmt.Function function) {
+    public String visitTypeExpr(AstType type) {
+        return type.toString();
+    }
+
+    @Override
+    public String visitFunctionDecl(AstFunctionDecl function) {
         StringBuilder builder = new StringBuilder();
 
         builder.append(function.name.lexeme).append("(");
         appendCommaSeperatedStatements(function.parameters, builder);
 
-        builder.append(") : ").append(function.returnType.lexeme).append(" {\n");
+        builder.append(") : ").append(function.type).append(" {\n");
         appendStatements(function.body, builder);
         builder.append("}");
 
@@ -47,19 +56,14 @@ public class AstPrinter implements Expr.Visitor<String>, Stmt.Visitor<String> {
     }
 
     @Override
-    public String visitParameterStmt(Stmt.Parameter parameter) {
-        return parameter.name.lexeme + " : " + parameter.type.lexeme;
+    public String visitParameter(AstParameter parameter) {
+        return parameter.name.lexeme + " : " + parameter.type;
     }
 
     @Override
-    public String visitPrintStmt(Stmt.Print print) {
-        return "print " + print.expression.accept(this);
-    }
-
-    @Override
-    public String visitVariableDeclarationStmt(Stmt.VariableDeclaration variableDeclaration) {
+    public String visitVariableDecl(AstVariableDecl variableDeclaration) {
         return (variableDeclaration.mutable ? "var " : "") + variableDeclaration.name.lexeme + " : "
-                + variableDeclaration.type.lexeme + " = " + variableDeclaration.initializer.accept(this);
+                + variableDeclaration.type + " = " + variableDeclaration.initializer.accept(this);
     }
 
     @Override
@@ -107,10 +111,15 @@ public class AstPrinter implements Expr.Visitor<String>, Stmt.Visitor<String> {
         return builder.toString();
     }
 
-    private void appendCommaSeperatedStatements(List<? extends Stmt> statements, StringBuilder builder) {
+    @Override
+    public String visitTypeExpr(Expr.Type type) {
+        return type.toString();
+    }
+
+    private void appendCommaSeperatedStatements(List<? extends AstNode> statements, StringBuilder builder) {
         for (int i = 0; i < statements.size(); i++) {
-            Stmt stmt = statements.get(i);
-            builder.append(stmt.accept(this));
+            AstNode node = statements.get(i);
+            builder.append(node.accept(this));
             if (i != statements.size() - 1) {
                 builder.append(", ");
             }
@@ -127,8 +136,8 @@ public class AstPrinter implements Expr.Visitor<String>, Stmt.Visitor<String> {
         }
     }
 
-    private void appendStatements(List<Stmt> statements, StringBuilder builder) {
-        for (Stmt stmt : statements) {
+    private void appendStatements(List<? extends AstStmt> statements, StringBuilder builder) {
+        for (AstStmt stmt : statements) {
             builder.append(stmt.accept(this)).append("\n");
         }
     }
