@@ -2,17 +2,19 @@ package dev.jok.verse.util;
 
 import dev.jok.verse.ast.AstNode;
 import dev.jok.verse.ast.AstVisitor;
-import dev.jok.verse.ast.Expr;
 import dev.jok.verse.ast.types.*;
 import dev.jok.verse.ast.types.decl.AstFunctionDecl;
 import dev.jok.verse.ast.types.decl.AstVariableDecl;
+import dev.jok.verse.ast.types.expr.*;
+import dev.jok.verse.ast.types.stmt.AstBlock;
+import dev.jok.verse.ast.types.stmt.AstExpressionStmt;
 
 import java.util.List;
 import java.util.Objects;
 
-public class AstPrinter implements Expr.Visitor<String>, AstVisitor<String> {
+public class AstPrinter implements AstVisitor<String> {
 
-    public String print(Expr expr) {
+    public String print(AstExpr expr) {
         return expr.accept(this);
     }
 
@@ -61,6 +63,23 @@ public class AstPrinter implements Expr.Visitor<String>, AstVisitor<String> {
     }
 
     @Override
+    public String visitIf(AstIfExpr astIf) {
+        StringBuilder builder = new StringBuilder();
+
+        builder.append("if (").append(astIf.condition.accept(this)).append(") {\n");
+        appendStatements(astIf.thenBranch, builder);
+        builder.append("}");
+
+        if (!astIf.elseBranch.isEmpty()) {
+            builder.append(" else {\n");
+            appendStatements(astIf.elseBranch, builder);
+            builder.append("}");
+        }
+
+        return builder.toString();
+    }
+
+    @Override
     public String visitVariableDecl(AstVariableDecl variableDeclaration) {
         String type;
         if (variableDeclaration.type != null) {
@@ -73,12 +92,12 @@ public class AstPrinter implements Expr.Visitor<String>, AstVisitor<String> {
     }
 
     @Override
-    public String visitAssignExpr(Expr.Assign assign) {
+    public String visitAssignExpr(AstAssignExpr assign) {
         return assign.name.lexeme + " = " + assign.value.accept(this);
     }
 
     @Override
-    public String visitBinaryExpr(Expr.Binary binary) {
+    public String visitBinaryExpr(AstBinaryExpr binary) {
         return "(" +
                 binary.left.accept(this) +
                 " " + binary.operator.lexeme + " " +
@@ -87,27 +106,27 @@ public class AstPrinter implements Expr.Visitor<String>, AstVisitor<String> {
     }
 
     @Override
-    public String visitGroupingExpr(Expr.Grouping grouping) {
+    public String visitGroupingExpr(AstGroupingExpr grouping) {
         return parenthesize("group", grouping.expression);
     }
 
     @Override
-    public String visitLiteralExpr(Expr.Literal literal) {
+    public String visitLiteralExpr(AstLiteralExpr literal) {
         return Objects.toString(literal);
     }
 
     @Override
-    public String visitUnaryExpr(Expr.Unary unary) {
+    public String visitUnaryExpr(AstUnaryExpr unary) {
         return unary.operator.lexeme + unary.right.accept(this);
     }
 
     @Override
-    public String visitVariableExpr(Expr.Variable variable) {
+    public String visitVariableExpr(AstVariableExpr variable) {
         return variable.name.lexeme;
     }
 
     @Override
-    public String visitCallExpr(Expr.Call call) {
+    public String visitCallExpr(AstCallExpr call) {
         StringBuilder builder = new StringBuilder();
 
         builder.append(call.callee.accept(this)).append("(");
@@ -115,11 +134,6 @@ public class AstPrinter implements Expr.Visitor<String>, AstVisitor<String> {
         builder.append(")");
 
         return builder.toString();
-    }
-
-    @Override
-    public String visitTypeExpr(Expr.Type type) {
-        return type.toString();
     }
 
     private void appendCommaSeperatedStatements(List<? extends AstNode> statements, StringBuilder builder) {
@@ -132,9 +146,9 @@ public class AstPrinter implements Expr.Visitor<String>, AstVisitor<String> {
         }
     }
 
-    private void appendCommaSeperatedExpressions(List<? extends Expr> expressions, StringBuilder builder) {
+    private void appendCommaSeperatedExpressions(List<? extends AstExpr> expressions, StringBuilder builder) {
         for (int i = 0; i < expressions.size(); i++) {
-            Expr expr = expressions.get(i);
+            AstExpr expr = expressions.get(i);
             builder.append(expr.accept(this));
             if (i != expressions.size() - 1) {
                 builder.append(", ");
@@ -148,11 +162,11 @@ public class AstPrinter implements Expr.Visitor<String>, AstVisitor<String> {
         }
     }
 
-    private String parenthesize(String name, Expr... exprs) {
+    private String parenthesize(String name, AstExpr... exprs) {
         StringBuilder builder = new StringBuilder();
 
         builder.append("(").append(name);
-        for (Expr expr : exprs) {
+        for (AstExpr expr : exprs) {
             builder.append(" ");
             builder.append(expr.accept(this));
         }

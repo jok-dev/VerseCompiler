@@ -19,7 +19,9 @@ public enum TokenType {
     // Keywords
     AND(true), OR(true), NOT(true), TRUE(true), FALSE(true),
     VAR(true), RETURN(true), SELF(true),
-    IF(true), WHILE(true), FOR(true), BREAK(true),
+    IF(true), ELSE(true), WHILE(true), FOR(true), BREAK(true),
+
+    CLASS(true), MODULE(true),
 
     // Effects
     TRANSACTS, VARIES, COMPUTES, CONVERGES,
@@ -65,6 +67,10 @@ public enum TokenType {
 
     @Override
     public String toString() {
-        return punctuation || keyword ? "`" + pretty + "`" : pretty;
+        if (keyword) {
+            return "keyword `" + pretty + "`";
+        }
+
+        return punctuation ? "`" + pretty + "`" : pretty;
     }
 }

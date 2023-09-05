@@ -1,7 +1,7 @@
 package dev.jok.verse.ast.types.decl;
 
 import dev.jok.verse.ast.AstVisitor;
-import dev.jok.verse.ast.Expr;
+import dev.jok.verse.ast.types.AstExpr;
 import dev.jok.verse.ast.types.AstStmt;
 import dev.jok.verse.ast.types.AstType;
 import dev.jok.verse.lexer.Token;
@@ -17,7 +17,7 @@ public class AstVariableDecl extends AstStmt {
     public final @NotNull Token name;
     public final @NotNull List<AstType> specifier;
     public final @Nullable AstType type;
-    public final @NotNull Expr initializer;
+    public final @NotNull AstExpr initializer;
     public final boolean mutable;
 
     @Override

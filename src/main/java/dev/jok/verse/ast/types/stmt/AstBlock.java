@@ -1,6 +1,7 @@
-package dev.jok.verse.ast.types;
+package dev.jok.verse.ast.types.stmt;
 
 import dev.jok.verse.ast.AstVisitor;
+import dev.jok.verse.ast.types.AstStmt;
 import lombok.RequiredArgsConstructor;
 
 import java.util.List;

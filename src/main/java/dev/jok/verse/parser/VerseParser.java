@@ -1,10 +1,12 @@
 package dev.jok.verse.parser;
 
-import dev.jok.verse.ast.Expr;
 import dev.jok.verse.VerseLang;
 import dev.jok.verse.ast.types.*;
 import dev.jok.verse.ast.types.decl.AstFunctionDecl;
 import dev.jok.verse.ast.types.decl.AstVariableDecl;
+import dev.jok.verse.ast.types.expr.*;
+import dev.jok.verse.ast.types.stmt.AstBlock;
+import dev.jok.verse.ast.types.stmt.AstExpressionStmt;
 import dev.jok.verse.lexer.Token;
 import dev.jok.verse.lexer.TokenType;
 import lombok.RequiredArgsConstructor;
@@ -12,6 +14,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
@@ -57,10 +60,21 @@ public class VerseParser {
 
     private AstStmt declaration() {
         try {
-            boolean isVar = advanceIfAny(VAR);
-            AstStmt node = maybeDecl(isVar);
-            if (node != null) {
-                return node;
+            boolean mutableVar = advanceIfAny(VAR);
+            if (peekExpectConditional(mutableVar, IDENTIFIER) && peekNextIsAny(ALLOWED_AFTER_DECL_IDENTIFIER)) {
+                Token name = advanceExpectToken(IDENTIFIER, "in declaration");
+                List<AstType> specifiers = maybeSpecifiers("in declaration");
+
+                if (mutableVar || peekIsAny(COLON, INFERRED_DECL)) {
+                    return variableDecl(mutableVar, name, specifiers);
+                }
+
+                if (!peekIs(LEFT_PAREN)) {
+                    throw error("Expected definition but found {peek}");
+                }
+
+                // must be a function
+                return functionDecl(name, specifiers);
             }
 
             return statement();
@@ -73,26 +87,6 @@ public class VerseParser {
             synchronize();
             return null;
         }
-    }
-
-    private @Nullable AstStmt maybeDecl(boolean mutableVar) {
-        if (peekExpectConditional(mutableVar, IDENTIFIER) && peekNextIsAny(ALLOWED_AFTER_DECL_IDENTIFIER)) {
-            Token name = advanceExpectToken(IDENTIFIER, "in declaration");
-            List<AstType> specifiers = maybeSpecifiers("in declaration");
-
-            if (mutableVar || peekIsAny(COLON, INFERRED_DECL)) {
-                return variableDecl(mutableVar, name, specifiers);
-            }
-
-            if (!peekIs(LEFT_PAREN)) {
-                throw error("Expected definition but found {peek}");
-            }
-
-            // must be a function
-            return functionDecl(name, specifiers);
-        }
-
-        return null;
     }
 
     private AstFunctionDecl functionDecl(Token name, List<AstType> specifiers) {
@@ -140,7 +134,7 @@ public class VerseParser {
             advanceExpectToken(EQUALS, "in variable definition");
         }
 
-        Expr initializer = expression();
+        AstExpr initializer = expression();
         return new AstVariableDecl(identifier, specifiers, type, initializer, mutableVar);
     }
 
@@ -193,7 +187,7 @@ public class VerseParser {
     }
 
     private AstStmt expressionStmt() {
-        Expr value = expression();
+        AstExpr value = expression();
         return new AstExpressionStmt(value);
     }
 
@@ -206,20 +200,20 @@ public class VerseParser {
         advanceExpectAny("Unexpected {peek} following expression", SEMICOLON, NEW_LINE, EOF);
     }
 
-    private Expr expression() {
+    private AstExpr expression() {
         return assignment();
     }
 
-    private Expr assignment() {
-        Expr expr = equality();
+    private AstExpr assignment() {
+        AstExpr expr = ifExpr();
 
         if (advanceIfAny(EQUALS)) {
-            Expr value = assignment();
+            AstExpr value = assignment();
 
             // @Todo(Jok) @Feat: add support for other assignment targets
-            if (expr instanceof Expr.Variable variable) {
+            if (expr instanceof AstVariableExpr variable) {
                 Token name = variable.name;
-                return new Expr.Assign(name, value);
+                return new AstAssignExpr(name, value);
             }
 
             // @Todo(Jok): need a better error here
@@ -229,66 +223,98 @@ public class VerseParser {
         return expr;
     }
 
-    private Expr equality() {
-        Expr expr = comparison();
+    private AstExpr ifExpr() {
+        AstExpr expr = equality();
+
+        if (advanceIfAny(IF)) {
+            // @Todo(Jok) @Feat: in verse this weird syntax needs to be supported "if { maybe }"
+            // @Todo(Jok) @Feat: ifs can also be in expressions, not just statements!
+
+            advanceExpectToken(LEFT_PAREN, "in if statement");
+            AstExpr condition = expression();
+            advanceExpectToken(RIGHT_PAREN, "in if statement");
+
+            // @Todo(Jok) @Feat: don't require braces {  }
+            advanceExpectToken(LEFT_BRACE, "in if statement");
+
+            // @Todo(Jok) @Feat: support then: block
+            List<AstStmt> thenBranch = anonymousBlock();
+
+            List<AstStmt> elseBranch;
+            if (advanceIfAny(ELSE)) {
+                // @Todo(Jok) @Feat: don't require braces {  }
+                advanceExpectToken(LEFT_BRACE, "in else statement");
+                elseBranch = anonymousBlock();
+            } else {
+                elseBranch = Collections.emptyList();
+            }
+
+            return new AstIfExpr(condition, thenBranch, elseBranch);
+        }
+
+        return expr;
+    }
+
+    private AstExpr equality() {
+        AstExpr expr = comparison();
 
         while (advanceIfAny(EQUALS)) {
             Token operator = peekPrevious();
-            Expr right = comparison();
-            expr = new Expr.Binary(expr, operator, right);
+            AstExpr right = comparison();
+            expr = new AstBinaryExpr(expr, operator, right);
         }
 
         return expr;
     }
 
-    private Expr comparison() {
-        Expr expr = addition();
+    private AstExpr comparison() {
+        AstExpr expr = addition();
 
         while (advanceIfAny(GREATER, GREATER_EQUAL, LESS, LESS_EQUAL)) {
             Token operator = peekPrevious();
-            Expr right = addition();
-            expr = new Expr.Binary(expr, operator, right);
+            AstExpr right = addition();
+            expr = new AstBinaryExpr(expr, operator, right);
         }
 
         return expr;
     }
 
-    private Expr addition() {
-        Expr expr = multiplication();
+    private AstExpr addition() {
+        AstExpr expr = multiplication();
 
         while (advanceIfAny(PLUS, MINUS)) {
             Token operator = peekPrevious();
-            Expr right = multiplication();
-            expr = new Expr.Binary(expr, operator, right);
+            AstExpr right = multiplication();
+            expr = new AstBinaryExpr(expr, operator, right);
         }
 
         return expr;
     }
 
-    private Expr multiplication() {
-        Expr expr = unary();
+    private AstExpr multiplication() {
+        AstExpr expr = unary();
 
         while (advanceIfAny(STAR, SLASH)) {
             Token operator = peekPrevious();
-            Expr right = unary();
-            expr = new Expr.Binary(expr, operator, right);
+            AstExpr right = unary();
+            expr = new AstBinaryExpr(expr, operator, right);
         }
 
         return expr;
     }
 
-    private Expr unary() {
+    private AstExpr unary() {
         if (advanceIfAny(MINUS, NOT)) {
             Token operator = peekPrevious();
-            Expr right = unary();
-            return new Expr.Unary(operator, right);
+            AstExpr right = unary();
+            return new AstUnaryExpr(operator, right);
         }
 
         return call();
     }
 
-    private Expr call() {
-        Expr expr = primary();
+    private AstExpr call() {
+        AstExpr expr = primary();
 
         while (true) {
             if (advanceIfAny(LEFT_PAREN)) {
@@ -301,8 +327,8 @@ public class VerseParser {
         return expr;
     }
 
-    private Expr finishCall(Expr callee) {
-        List<Expr> arguments = new ArrayList<>();
+    private AstExpr finishCall(AstExpr callee) {
+        List<AstExpr> arguments = new ArrayList<>();
 
         if (!peekIs(RIGHT_PAREN)) {
             do {
@@ -316,30 +342,30 @@ public class VerseParser {
 
         advanceExpectToken(RIGHT_PAREN, "after function arguments");
 
-        return new Expr.Call(callee, arguments);
+        return new AstCallExpr(callee, arguments);
     }
 
-    private Expr primary() {
+    private AstExpr primary() {
         if (advanceIfAny(FALSE)) {
-            return new Expr.Literal(false);
+            return new AstLiteralExpr(false);
         }
 
         if (advanceIfAny(TRUE)) {
-            return new Expr.Literal(true);
+            return new AstLiteralExpr(true);
         }
 
         if (advanceIfAny(NUMBER_INT, NUMBER_FLOAT, STRING)) {
-            return new Expr.Literal(peekPrevious().literal);
+            return new AstLiteralExpr(peekPrevious().literal);
         }
 
         if (advanceIfAny(IDENTIFIER)) {
-            return new Expr.Variable(peekPrevious());
+            return new AstVariableExpr(peekPrevious());
         }
 
         if (advanceIfAny(LEFT_PAREN)) {
-            Expr expr = expression();
+            AstExpr expr = expression();
             advanceExpectToken(RIGHT_PAREN, "after expression");
-            return new Expr.Grouping(expr);
+            return new AstGroupingExpr(expr);
         }
 
         throw error("Expected expression, instead got {peek}");

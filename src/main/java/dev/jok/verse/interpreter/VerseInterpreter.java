@@ -1,15 +1,17 @@
 package dev.jok.verse.interpreter;
 
 import dev.jok.verse.ast.AstVisitor;
-import dev.jok.verse.ast.Expr;
 import dev.jok.verse.ast.types.*;
 import dev.jok.verse.ast.types.decl.AstFunctionDecl;
 import dev.jok.verse.ast.types.decl.AstVariableDecl;
+import dev.jok.verse.ast.types.expr.*;
+import dev.jok.verse.ast.types.stmt.AstBlock;
+import dev.jok.verse.ast.types.stmt.AstExpressionStmt;
 import dev.jok.verse.types.number.VNumber;
 
 import java.util.List;
 
-public class VerseInterpreter implements Expr.Visitor<Object>, AstVisitor<Void> {
+public class VerseInterpreter implements AstVisitor<Object> {
 
     public void interpret(List<AstStmt> statements) {
         for (AstStmt stmt : statements) {
@@ -21,7 +23,7 @@ public class VerseInterpreter implements Expr.Visitor<Object>, AstVisitor<Void> 
         stmt.accept(this);
     }
 
-    public void interpret(Expr expr) {
+    public void interpret(AstExpr expr) {
         Object value = evaluate(expr);
         System.out.println(value);
     }
@@ -38,11 +40,6 @@ public class VerseInterpreter implements Expr.Visitor<Object>, AstVisitor<Void> 
     }
 
     @Override
-    public Void visitTypeExpr(AstType type) {
-        return null;
-    }
-
-    @Override
     public Void visitFunctionDecl(AstFunctionDecl function) {
         return null;
     }
@@ -53,17 +50,22 @@ public class VerseInterpreter implements Expr.Visitor<Object>, AstVisitor<Void> 
     }
 
     @Override
+    public Void visitIf(AstIfExpr astIf) {
+        return null;
+    }
+
+    @Override
     public Void visitVariableDecl(AstVariableDecl variableDeclaration) {
         return null;
     }
 
     @Override
-    public Object visitAssignExpr(Expr.Assign assign) {
+    public Object visitAssignExpr(AstAssignExpr assign) {
         return null;
     }
 
     @Override
-    public Object visitBinaryExpr(Expr.Binary binary) {
+    public Object visitBinaryExpr(AstBinaryExpr binary) {
         Object left = evaluate(binary.left);
         Object right = evaluate(binary.right);
 
@@ -139,17 +141,17 @@ public class VerseInterpreter implements Expr.Visitor<Object>, AstVisitor<Void> 
     }
 
     @Override
-    public Object visitGroupingExpr(Expr.Grouping grouping) {
+    public Object visitGroupingExpr(AstGroupingExpr grouping) {
         return evaluate(grouping.expression);
     }
 
     @Override
-    public Object visitLiteralExpr(Expr.Literal literal) {
+    public Object visitLiteralExpr(AstLiteralExpr literal) {
         return literal.value;
     }
 
     @Override
-    public Object visitUnaryExpr(Expr.Unary unary) {
+    public Object visitUnaryExpr(AstUnaryExpr unary) {
         Object right = evaluate(unary.right);
 
         return switch (unary.operator.type) {
@@ -168,19 +170,19 @@ public class VerseInterpreter implements Expr.Visitor<Object>, AstVisitor<Void> 
     }
 
     @Override
-    public Object visitVariableExpr(Expr.Variable variable) {
+    public Object visitVariableExpr(AstVariableExpr variable) {
         System.out.println(variable);
 
         return variable;
     }
 
     @Override
-    public Object visitCallExpr(Expr.Call call) {
+    public Object visitCallExpr(AstCallExpr call) {
         return null;
     }
 
     @Override
-    public Object visitTypeExpr(Expr.Type type) {
+    public Object visitTypeExpr(AstType type) {
         return null;
     }
 
@@ -192,15 +194,15 @@ public class VerseInterpreter implements Expr.Visitor<Object>, AstVisitor<Void> 
         return false;
     }
 
-    private Object evaluate(Expr expr) {
+    private Object evaluate(AstExpr expr) {
         return expr.accept(this);
     }
 
-    public static RuntimeError runtimeError(Expr expr, String message) {
+    public static RuntimeError runtimeError(AstExpr expr, String message) {
         return new RuntimeError("Runtime error at " + expr + ": " + message);
     }
 
-    public static InternalError internalError(Expr expr, String message) {
+    public static InternalError internalError(AstExpr expr, String message) {
         return new InternalError("Internal error interpreting expression " + expr + ": " + message);
     }
 

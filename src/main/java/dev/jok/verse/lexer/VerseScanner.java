@@ -127,6 +127,10 @@ public class VerseScanner {
         if (text.equals("while")) type = TokenType.WHILE;
         if (text.equals("for")) type = TokenType.FOR;
         if (text.equals("block")) type = TokenType.BLOCK;
+        if (text.equals("spawn")) type = TokenType.SPAWN;
+        if (text.equals("break")) type = TokenType.BREAK;
+        if (text.equals("class")) type = TokenType.CLASS;
+        if (text.equals("module")) type = TokenType.MODULE;
 
         addToken(type);
     }
