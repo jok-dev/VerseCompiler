@@ -17,9 +17,9 @@ public enum TokenType {
     IDENTIFIER, STRING, NUMBER_INT, NUMBER_FLOAT,
 
     // Keywords
-    AND, OR, NOT, TRUE, FALSE,
-    VAR, RETURN, SELF,
-    IF, WHILE, FOR, BREAK,
+    AND(true), OR(true), NOT(true), TRUE(true), FALSE(true),
+    VAR(true), RETURN(true), SELF(true),
+    IF(true), WHILE(true), FOR(true), BREAK(true),
 
     // Effects
     TRANSACTS, VARIES, COMPUTES, CONVERGES,
@@ -43,9 +43,15 @@ public enum TokenType {
 
     private final @NotNull String pretty;
     private @Getter boolean punctuation = false;
+    private @Getter boolean keyword = false;
 
     TokenType() {
         this.pretty = name().toLowerCase();
+    }
+
+    TokenType(boolean keyword) {
+        this();
+        this.keyword = keyword;
     }
 
     TokenType(@NotNull String pretty) {
@@ -53,9 +59,12 @@ public enum TokenType {
         this.punctuation = true;
     }
 
-    @Override
-    public String toString() {
-        return punctuation ? "`" + pretty + "`" : pretty;
+    public boolean isSelfDescribing() {
+        return punctuation || keyword;
     }
 
+    @Override
+    public String toString() {
+        return punctuation || keyword ? "`" + pretty + "`" : pretty;
+    }
 }

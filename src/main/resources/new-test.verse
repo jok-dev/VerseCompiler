@@ -2,7 +2,7 @@ Function<public>()<suspends> : void = {
 
 }
 
-Function() : void = {
+Function<type>()<type> : void = {
 
 }
 
@@ -15,6 +15,6 @@ Variable : int = 10
 Variable := 10
 
 var Variable : int = 10
-var Variable := 10
+var Variable :int= 10
 
 # Test that <> is disallowed

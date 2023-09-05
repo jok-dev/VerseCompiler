@@ -20,6 +20,8 @@ import static dev.jok.verse.lexer.TokenType.*;
 @RequiredArgsConstructor
 public class VerseParser {
 
+    private static final TokenType[] ALLOWED_AFTER_DECL_IDENTIFIER = { COLON, LESS, LEFT_PAREN, INFERRED_DECL };
+
     private static final Set<TokenType> VALID_STATEMENT_ENDS = Set.of(RIGHT_BRACE, SEMICOLON, NEW_LINE, EOF);
 
     private final boolean debug;
@@ -74,12 +76,11 @@ public class VerseParser {
     }
 
     private @Nullable AstStmt maybeDecl(boolean mutableVar) {
-        if (peekExpectConditional(mutableVar, "Expected identifier after `var`", IDENTIFIER)
-                && (peekNextIs(COLON) || peekNextIs(LESS) || peekNextIs(LEFT_PAREN))) {
+        if (peekExpectConditional(mutableVar, IDENTIFIER) && peekNextIsAny(ALLOWED_AFTER_DECL_IDENTIFIER)) {
             Token name = advanceExpectToken(IDENTIFIER, "in declaration");
             List<AstType> specifiers = maybeSpecifiers("in declaration");
 
-            if (mutableVar || peekIs(COLON)) {
+            if (mutableVar || peekIsAny(COLON, INFERRED_DECL)) {
                 return variableDecl(mutableVar, name, specifiers);
             }
 
@@ -95,8 +96,6 @@ public class VerseParser {
     }
 
     private AstFunctionDecl functionDecl(Token name, List<AstType> specifiers) {
-        List<AstType> effects = maybeSpecifiers("in function declaration");
-
         advanceExpectToken(LEFT_PAREN, "in function declaration");
 
         // parse parameters
@@ -112,6 +111,9 @@ public class VerseParser {
         }
 
         advanceExpectToken(RIGHT_PAREN, "in function declaration");
+
+        List<AstType> effects = maybeSpecifiers("in function declaration");
+
         advanceExpectToken(COLON, "in function declaration");
         AstType type = type("in function declaration");
         advanceExpectToken(EQUALS, "in function declaration");
@@ -125,26 +127,29 @@ public class VerseParser {
 
     private AstVariableDecl variableDecl(boolean mutableVar, Token identifier, List<AstType> specifiers) {
         // mutables don't support inferred types currently
-        peekExpectConditional(mutableVar, "Missing type for `^` or `var` definition", INFERRED_DECL);
+        if (mutableVar && peekIs(INFERRED_DECL)) {
+            throw error("Missing type for `^` or `var` definition");
+        }
 
-        // @Todo(Jok): allow immutables to have inferred types
+        AstType type = null;
 
-        advanceExpectToken(COLON, "in variable definition");
-
-        AstType type = type("in variable definition");
-
-        advanceExpectToken(EQUALS, "in variable definition");
+        // parse type if not inferred
+        if (!advanceIfAny(INFERRED_DECL)) {
+            advanceExpectToken(COLON, "in variable definition");
+            type = type("in variable definition");
+            advanceExpectToken(EQUALS, "in variable definition");
+        }
 
         Expr initializer = expression();
-        return new AstVariableDecl(identifier, specifiers, type, initializer, true);
+        return new AstVariableDecl(identifier, specifiers, type, initializer, mutableVar);
     }
 
     private List<AstType> maybeSpecifiers(String context) {
         List<AstType> specifiers = new ArrayList<>();
         if (advanceIfAny(LESS)) {
             do {
-                specifiers.add(type(context));
-                advanceExpectToken(GREATER, "after specifier name");
+                specifiers.add(type("specifier type", ""));
+                advanceExpectToken(GREATER, "after specifier type");
             } while (advanceIfAny(LESS));
         }
 
@@ -152,6 +157,14 @@ public class VerseParser {
     }
 
     private AstType type(String context) {
+        return type(null, context);
+    }
+
+    private AstType type(@Nullable String tokenName, String context) {
+        if (tokenName == null) {
+            tokenName = "type";
+        }
+
         boolean array = false;
         boolean map = false;
         AstType keyType = null;
@@ -168,7 +181,7 @@ public class VerseParser {
         }
 
         boolean optional = advanceIfAny(QUESTION_MARK);
-        Token name = advanceExpectToken("type", IDENTIFIER, context);
+        Token name = advanceExpectToken(tokenName, IDENTIFIER, context);
         return new AstType(name, array, map, keyType, optional);
     }
 
@@ -381,24 +394,42 @@ public class VerseParser {
         }
     }
 
-    private boolean peekExpectConditional(boolean shouldError, String message, TokenType type) {
-        boolean is = peekIs(type);
-
-        if (shouldError && is) {
-            throw error(message);
-        }
-
-        return is;
+    private boolean peekExpectConditional(boolean shouldError, TokenType type) {
+        return peekExpectConditional(shouldError, null, type);
     }
 
-    private @Nullable Token peekIsAny(TokenType... anyOfTypes) {
+    private boolean peekExpectConditional(boolean shouldError, @Nullable String context, TokenType type) {
+        if (shouldError) {
+            peekExpect(context, type);
+        }
+
+        return peekIs(type);
+    }
+
+    private void peekExpect(@Nullable String context, TokenType type) {
+        if (!peekIs(type)) {
+            throw expectError(null, type, context);
+        }
+    }
+
+    private boolean peekIsAny(TokenType... anyOfTypes) {
         for (TokenType type : anyOfTypes) {
             if (peekIs(type)) {
-                return advance();
+                return true;
             }
         }
 
-        return null;
+        return false;
+    }
+
+    private boolean peekNextIsAny(TokenType... anyOfTypes) {
+        for (TokenType type : anyOfTypes) {
+            if (peekNextIs(type)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private boolean peekIsConsecutive(TokenType... types) {
@@ -442,7 +473,12 @@ public class VerseParser {
     }
 
     private boolean advanceIfAny(TokenType... anyOfTypes) {
-        return peekIsAny(anyOfTypes) != null;
+        if (peekIsAny(anyOfTypes)) {
+            advance();
+            return true;
+        }
+
+        return false;
     }
 
     private boolean eatBlankLines() {
@@ -450,13 +486,10 @@ public class VerseParser {
         return isAtEnd();
     }
 
-    private Token advanceExpectAny(String message, TokenType... anyOfTypes) {
-        Token token = peekIsAny(anyOfTypes);
-        if (token != null) {
-            return token;
+    private void advanceExpectAny(String message, TokenType... anyOfTypes) {
+        if (!advanceIfAny(anyOfTypes)) {
+            throw error(message);
         }
-
-        throw error(message);
     }
 
     private Token advanceExpectToken(TokenType tokenType) {
@@ -472,7 +505,11 @@ public class VerseParser {
             return advance();
         }
 
-        throw error("Expected " + (expectedName != null ? expectedName : tokenType) + (context != null ? " " + context : "") + ", instead got {peek}");
+        throw expectError(expectedName, tokenType, context);
+    }
+
+    private SyntaxError expectError(@Nullable String expectedName, TokenType tokenType, @Nullable String context) {
+        throw error("Expected " + (expectedName != null ? expectedName : tokenType) + (context != null ? " " + context : "") + " after {peekPrev}, instead got {peek}");
     }
 
     private boolean isAtEnd() {
@@ -492,13 +529,8 @@ public class VerseParser {
         return peek(1);
     }
 
-    private @NotNull Token peekPrevious() {
-        Token peek = peek(-1);
-        if (peek == null) {
-            throw new IllegalStateException("Cannot peek previous when at start of file");
-        }
-
-        return peek;
+    private @Nullable Token peekPrevious() {
+        return peek(-1);
     }
 
     private @Nullable Token peek(int advance) {
@@ -511,7 +543,7 @@ public class VerseParser {
     }
 
     private SyntaxError error(String message) {
-        VerseLang.syntaxError(peek(), peekNext(), message);
+        VerseLang.syntaxError(peekPrevious(), peek(), peekNext(), message);
         return new SyntaxError();
     }
 

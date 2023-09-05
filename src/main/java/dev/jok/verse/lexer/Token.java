@@ -21,7 +21,7 @@ public class Token {
             return "end of file";
         }
 
-        if (type.isPunctuation()) {
+        if (type.isSelfDescribing()) {
             return type.toString();
         }
 

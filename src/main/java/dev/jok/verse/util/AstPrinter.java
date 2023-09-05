@@ -62,8 +62,14 @@ public class AstPrinter implements Expr.Visitor<String>, AstVisitor<String> {
 
     @Override
     public String visitVariableDecl(AstVariableDecl variableDeclaration) {
-        return (variableDeclaration.mutable ? "var " : "") + variableDeclaration.name.lexeme + " : "
-                + variableDeclaration.type + " = " + variableDeclaration.initializer.accept(this);
+        String type;
+        if (variableDeclaration.type != null) {
+            type = " : " + variableDeclaration.type.accept(this) + " = ";
+        } else {
+            type = " := ";
+        }
+
+        return (variableDeclaration.mutable ? "var " : "") + variableDeclaration.name.lexeme + type + variableDeclaration.initializer.accept(this);
     }
 
     @Override

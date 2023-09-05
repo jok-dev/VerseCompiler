@@ -27,8 +27,8 @@ public class VerseLang {
         LogManager.getLogManager().readConfiguration(stream);
         LOGGER = Logger.getLogger("Verse");
 
-        if (args.length != 1) {
-            LOGGER.log(Level.SEVERE, "Usage: verse [script]");
+        if (args.length != 2) {
+            LOGGER.log(Level.SEVERE, "Usage: verse [script] [debug]");
             System.exit(64);
         }
 
@@ -45,8 +45,11 @@ public class VerseLang {
         }
 
         String fileContent = Files.readString(file.toPath());
+
+        boolean debug = Boolean.parseBoolean(args[1]);
+
         List<Token> tokens = new VerseScanner(fileContent).scanTokens();
-        VerseParser parser = new VerseParser(false, tokens);
+        VerseParser parser = new VerseParser(debug, tokens);
 
         List<AstStmt> statements;
         try {
@@ -78,9 +81,10 @@ public class VerseLang {
         interp.interpret(statements);
     }
 
-    public static void syntaxError(@NotNull Token current, @Nullable Token next, String message) {
+    public static void syntaxError(@Nullable Token previous, @NotNull Token current, @Nullable Token next, String message) {
         message = message.replace("{peek}", current.errorString());
         message = message.replace("{peekNext}", next != null ? next.errorString() : "null");
+        message = message.replace("{peekPrev}", previous != null ? previous.errorString() : "null");
         syntaxError(current.line, current.col, message);
     }
 
