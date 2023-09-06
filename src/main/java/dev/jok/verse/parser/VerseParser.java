@@ -30,6 +30,7 @@ public class VerseParser {
     private final boolean debug;
     private final List<Token> tokens;
     private int current = 0;
+    private int backtrackTo = -1;
 
     public @NotNull List<AstStmt> parse() {
         List<AstStmt> statements = new ArrayList<>();
@@ -62,19 +63,28 @@ public class VerseParser {
         try {
             boolean mutableVar = advanceIfAny(VAR);
             if (peekExpectConditional(mutableVar, IDENTIFIER) && peekNextIsAny(ALLOWED_AFTER_DECL_IDENTIFIER)) {
+                // @Todo(Jok): I don't love backtracking!
+                markBacktrack();
+
                 Token name = advanceExpectToken(IDENTIFIER, "in declaration");
                 List<AstType> specifiers = maybeSpecifiers("in declaration");
 
                 if (mutableVar || peekIsAny(COLON, INFERRED_DECL)) {
+                    unmarkBacktrack();
                     return variableDecl(mutableVar, name, specifiers);
                 }
 
                 if (!peekIs(LEFT_PAREN)) {
-                    throw error("Expected definition but found {peek}");
+                    throw error("Expected function definition but found {peek}");
                 }
 
-                // must be a function
-                return functionDecl(name, specifiers);
+                if (peekAfterTokenIs(RIGHT_PAREN, COLON)) {
+                    // must be a function decl
+                    return functionDecl(name, specifiers);
+                } else {
+                    // not a function decl
+                    backtrack();
+                }
             }
 
             return statement();
@@ -87,6 +97,39 @@ public class VerseParser {
             synchronize();
             return null;
         }
+    }
+
+    private boolean peekAfterTokenIs(TokenType untilToken, TokenType isToken) {
+        int advance = 1;
+        while (true) {
+            Token peek = peek(advance);
+            if (peek == null) {
+                return false;
+            }
+
+            if (peek.type == untilToken) {
+                Token afterToken = peek(advance + 1);
+                return afterToken != null && afterToken.type == isToken;
+            }
+
+            advance++;
+        }
+    }
+
+    private void markBacktrack() {
+        backtrackTo = current;
+    }
+
+    private void unmarkBacktrack() {
+        backtrackTo = -1;
+    }
+
+    private void backtrack() {
+        if (backtrackTo == -1) {
+            throw new IllegalStateException("Tried to backtrack but no backtrack point was set");
+        }
+
+        current = backtrackTo;
     }
 
     private AstFunctionDecl functionDecl(Token name, List<AstType> specifiers) {
@@ -224,14 +267,12 @@ public class VerseParser {
     }
 
     private AstExpr ifExpr() {
-        AstExpr expr = equality();
-
         if (advanceIfAny(IF)) {
             // @Todo(Jok) @Feat: in verse this weird syntax needs to be supported "if { maybe }"
             // @Todo(Jok) @Feat: ifs can also be in expressions, not just statements!
 
             advanceExpectToken(LEFT_PAREN, "in if statement");
-            AstExpr condition = expression();
+            AstExpr expr = expression();
             advanceExpectToken(RIGHT_PAREN, "in if statement");
 
             // @Todo(Jok) @Feat: don't require braces {  }
@@ -249,10 +290,10 @@ public class VerseParser {
                 elseBranch = Collections.emptyList();
             }
 
-            return new AstIfExpr(condition, thenBranch, elseBranch);
+            return new AstIfExpr(expr, thenBranch, elseBranch);
         }
 
-        return expr;
+        return equality();
     }
 
     private AstExpr equality() {
@@ -319,6 +360,9 @@ public class VerseParser {
         while (true) {
             if (advanceIfAny(LEFT_PAREN)) {
                 expr = finishCall(expr);
+            } else if (advanceIfAny(DOT)) {
+                Token name = advanceExpectToken(IDENTIFIER);
+                expr = new AstGetExpr(expr, name);
             } else {
                 break;
             }
@@ -327,7 +371,7 @@ public class VerseParser {
         return expr;
     }
 
-    private AstExpr finishCall(AstExpr callee) {
+    private AstExpr finishCall(@NotNull AstExpr callee) {
         List<AstExpr> arguments = new ArrayList<>();
 
         if (!peekIs(RIGHT_PAREN)) {
@@ -362,11 +406,16 @@ public class VerseParser {
             return new AstVariableExpr(peekPrevious());
         }
 
-        if (advanceIfAny(LEFT_PAREN)) {
-            AstExpr expr = expression();
-            advanceExpectToken(RIGHT_PAREN, "after expression");
-            return new AstGroupingExpr(expr);
+        if (advanceIfAny(IDENTIFIER)) {
+            return new AstVariableExpr(peekPrevious());
         }
+
+        // @Todo(Jok): add support for groups
+//        if (advanceIfAny(LEFT_PAREN)) {
+//            AstExpr expr = expression();
+//            advanceExpectToken(RIGHT_PAREN, "after expression");
+//            return new AstGroupingExpr(expr);
+//        }
 
         throw error("Expected expression, instead got {peek}");
     }
@@ -569,6 +618,7 @@ public class VerseParser {
     }
 
     private SyntaxError error(String message) {
+        unmarkBacktrack();
         VerseLang.syntaxError(peekPrevious(), peek(), peekNext(), message);
         return new SyntaxError();
     }

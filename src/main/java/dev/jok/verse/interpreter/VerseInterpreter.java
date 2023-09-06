@@ -182,6 +182,11 @@ public class VerseInterpreter implements AstVisitor<Object> {
     }
 
     @Override
+    public Object visitGetExpr(AstGetExpr astGet) {
+        return null;
+    }
+
+    @Override
     public Object visitTypeExpr(AstType type) {
         return null;
     }

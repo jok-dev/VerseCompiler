@@ -29,4 +29,6 @@ public interface AstVisitor<R> {
     R visitVariableExpr(AstVariableExpr astVariable);
 
     R visitCallExpr(AstCallExpr astCall);
+    R visitGetExpr(AstGetExpr astGet);
+
 }

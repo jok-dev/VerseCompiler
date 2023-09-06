@@ -136,6 +136,11 @@ public class AstPrinter implements AstVisitor<String> {
         return builder.toString();
     }
 
+    @Override
+    public String visitGetExpr(AstGetExpr astGet) {
+        return astGet.toString();
+    }
+
     private void appendCommaSeperatedStatements(List<? extends AstNode> statements, StringBuilder builder) {
         for (int i = 0; i < statements.size(); i++) {
             AstNode node = statements.get(i);

@@ -2,20 +2,17 @@ package dev.jok.verse.ast.types.expr;
 
 import dev.jok.verse.ast.AstVisitor;
 import dev.jok.verse.ast.types.AstExpr;
+import dev.jok.verse.lexer.Token;
 import lombok.RequiredArgsConstructor;
-import org.jetbrains.annotations.NotNull;
-
-import java.util.List;
 
 @RequiredArgsConstructor
-public class AstCallExpr extends AstExpr {
+public class AstGetExpr extends AstExpr {
 
-    public final @NotNull AstExpr callee;
-    public final @NotNull List<AstExpr> arguments;
+    public final AstExpr expr;
+    public final Token name;
 
     @Override
     public <R> R accept(AstVisitor<R> visitor) {
-        return visitor.visitCallExpr(this);
+        return visitor.visitGetExpr(this);
     }
-
 }
