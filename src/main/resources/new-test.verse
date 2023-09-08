@@ -1,13 +1,14 @@
-Function(test : int, test : int) : void = {
-    print("test")
+Print<native>(message : []char) : void
 
-    if (test) {
-        print("test1")
-        print("test2")
-    } else {
-        print("test3")
-        print("test4")
-    }
+Sqrt<native>(X : float) : float
+
+VariableTest : string = "Test"
+
+Main(Args : []string) : int = {
+    Print("Hello World {VariableTest}")
+
+    Sqrt(12.0)
+    Print("Sqrt(12) = {X}")
+
 }
 
-# no args function calls

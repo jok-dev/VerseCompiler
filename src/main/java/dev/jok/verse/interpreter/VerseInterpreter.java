@@ -1,5 +1,6 @@
 package dev.jok.verse.interpreter;
 
+import dev.jok.verse.ast.AstNode;
 import dev.jok.verse.ast.AstVisitor;
 import dev.jok.verse.ast.types.*;
 import dev.jok.verse.ast.types.decl.AstFunctionDecl;
@@ -8,10 +9,15 @@ import dev.jok.verse.ast.types.expr.*;
 import dev.jok.verse.ast.types.stmt.AstBlock;
 import dev.jok.verse.ast.types.stmt.AstExpressionStmt;
 import dev.jok.verse.types.number.VNumber;
+import lombok.RequiredArgsConstructor;
 
 import java.util.List;
 
+@RequiredArgsConstructor
 public class VerseInterpreter implements AstVisitor<Object> {
+
+    private final List<AstStmt> statements;
+    private final VerseNative verseNative = new VerseNative();
 
     public void interpret(List<AstStmt> statements) {
         for (AstStmt stmt : statements) {
@@ -41,6 +47,8 @@ public class VerseInterpreter implements AstVisitor<Object> {
 
     @Override
     public Void visitFunctionDecl(AstFunctionDecl function) {
+
+
         return null;
     }
 
@@ -171,14 +179,30 @@ public class VerseInterpreter implements AstVisitor<Object> {
 
     @Override
     public Object visitVariableExpr(AstVariableExpr variable) {
-        System.out.println(variable);
-
         return variable;
     }
 
     @Override
     public Object visitCallExpr(AstCallExpr call) {
-        return null;
+        if (call.callee instanceof AstVariableExpr variable) {
+            AstFunctionDecl functionDecl = lookupFunctionDecl(variable.name.lexeme);
+
+            if (functionDecl == null) {
+                throw runtimeError(call, "Undefined function '" + variable.name.lexeme + "'.");
+            }
+
+            if (functionDecl.hasSpecifier("native")) {
+                return callNativeFunction(functionDecl, call.arguments);
+            }
+
+            return null;
+        }
+
+        throw runtimeError(call, "Can only call functions");
+    }
+
+    private Object callNativeFunction(AstFunctionDecl functionDecl, List<AstExpr> arguments) {
+        return verseNative.callNative(functionDecl.name.lexeme, arguments.stream().map(this::evaluate).toArray());
     }
 
     @Override
@@ -188,6 +212,18 @@ public class VerseInterpreter implements AstVisitor<Object> {
 
     @Override
     public Object visitTypeExpr(AstType type) {
+        return null;
+    }
+
+    public AstFunctionDecl lookupFunctionDecl(String name) {
+        FunctionSearchVisitor visitor = new FunctionSearchVisitor(name);
+        for (AstStmt stmt : statements) {
+            AstFunctionDecl function = stmt.accept(visitor);
+            if (function != null) {
+                return function;
+            }
+        }
+
         return null;
     }
 
@@ -203,7 +239,7 @@ public class VerseInterpreter implements AstVisitor<Object> {
         return expr.accept(this);
     }
 
-    public static RuntimeError runtimeError(AstExpr expr, String message) {
+    public static RuntimeError runtimeError(AstNode expr, String message) {
         return new RuntimeError("Runtime error at " + expr + ": " + message);
     }
 

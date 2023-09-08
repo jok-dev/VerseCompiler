@@ -44,7 +44,7 @@ public class VFloat extends VNumber<VFloat> {
     }
 
     @Override
-    protected Number getRawValue() {
+    public Number getRawValue() {
         return value;
     }
 

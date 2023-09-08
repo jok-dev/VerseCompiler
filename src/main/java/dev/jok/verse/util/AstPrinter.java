@@ -50,9 +50,13 @@ public class AstPrinter implements AstVisitor<String> {
         builder.append(function.name.lexeme).append("(");
         appendCommaSeperatedStatements(function.parameters, builder);
 
-        builder.append(") : ").append(function.type).append(" {\n");
-        appendStatements(function.body, builder);
-        builder.append("}");
+        builder.append(") : ").append(function.type);
+
+        if (function.body != null) {
+            builder.append(" = {\n");
+            appendStatements(function.body, builder);
+            builder.append("}");
+        }
 
         return builder.toString();
     }

@@ -19,7 +19,7 @@ public enum TokenType {
     // Keywords
     AND(true), OR(true), NOT(true), TRUE(true), FALSE(true),
     VAR(true), RETURN(true), SELF(true),
-    IF(true), ELSE(true), WHILE(true), FOR(true), BREAK(true),
+    IF(true), ELSE(true), FOR(true), BREAK(true),
 
     CLASS(true), MODULE(true),
 

@@ -9,28 +9,28 @@ import dev.jok.verse.ast.types.stmt.AstBlock;
 import dev.jok.verse.ast.types.stmt.AstExpressionStmt;
 import dev.jok.verse.lexer.Token;
 import dev.jok.verse.lexer.TokenType;
-import lombok.RequiredArgsConstructor;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 import static dev.jok.verse.lexer.TokenType.*;
 
-@RequiredArgsConstructor
 public class VerseParser {
 
     private static final TokenType[] ALLOWED_AFTER_DECL_IDENTIFIER = { COLON, LESS, LEFT_PAREN, INFERRED_DECL };
 
-    private static final Set<TokenType> VALID_STATEMENT_ENDS = Set.of(RIGHT_BRACE, SEMICOLON, NEW_LINE, EOF);
+    private static final Set<TokenType> VALID_STATEMENT_ENDS = EnumSet.of(RIGHT_BRACE, SEMICOLON, NEW_LINE, EOF);
 
     private final boolean debug;
     private final List<Token> tokens;
     private int current = 0;
     private int backtrackTo = -1;
+
+    public VerseParser(boolean debug, List<Token> tokens) {
+        this.debug = debug;
+        this.tokens = tokens;
+    }
 
     public @NotNull List<AstStmt> parse() {
         List<AstStmt> statements = new ArrayList<>();
@@ -64,26 +64,29 @@ public class VerseParser {
             boolean mutableVar = advanceIfAny(VAR);
             if (peekExpectConditional(mutableVar, IDENTIFIER) && peekNextIsAny(ALLOWED_AFTER_DECL_IDENTIFIER)) {
                 // @Todo(Jok): I don't love backtracking!
-                markBacktrack();
+                try {
+                    markBacktrack();
 
-                Token name = advanceExpectToken(IDENTIFIER, "in declaration");
-                List<AstType> specifiers = maybeSpecifiers("in declaration");
+                    Token name = advanceExpectToken(IDENTIFIER, "in declaration");
+                    List<AstType> specifiers = maybeSpecifiers("in declaration");
 
-                if (mutableVar || peekIsAny(COLON, INFERRED_DECL)) {
+                    if (mutableVar || peekIsAny(COLON, INFERRED_DECL)) {
+                        return variableDecl(mutableVar, name, specifiers);
+                    }
+
+                    if (!peekIs(LEFT_PAREN)) {
+                        throw error("Expected function definition but found {peek}");
+                    }
+
+                    if (peekAfterTokenIs(RIGHT_PAREN, COLON)) {
+                        // must be a function decl
+                        return functionDecl(name, specifiers);
+                    } else {
+                        // not a function decl
+                        backtrack();
+                    }
+                } finally {
                     unmarkBacktrack();
-                    return variableDecl(mutableVar, name, specifiers);
-                }
-
-                if (!peekIs(LEFT_PAREN)) {
-                    throw error("Expected function definition but found {peek}");
-                }
-
-                if (peekAfterTokenIs(RIGHT_PAREN, COLON)) {
-                    // must be a function decl
-                    return functionDecl(name, specifiers);
-                } else {
-                    // not a function decl
-                    backtrack();
                 }
             }
 
@@ -104,6 +107,11 @@ public class VerseParser {
         while (true) {
             Token peek = peek(advance);
             if (peek == null) {
+                return false;
+            }
+
+            // don't peek past a statement end
+            if (VALID_STATEMENT_ENDS.contains(peek.type)) {
                 return false;
             }
 
@@ -129,7 +137,7 @@ public class VerseParser {
             throw new IllegalStateException("Tried to backtrack but no backtrack point was set");
         }
 
-        current = backtrackTo;
+        updateCurrentPosition(backtrackTo);
     }
 
     private AstFunctionDecl functionDecl(Token name, List<AstType> specifiers) {
@@ -153,11 +161,16 @@ public class VerseParser {
 
         advanceExpectToken(COLON, "in function declaration");
         AstType type = type("in function declaration");
-        advanceExpectToken(EQUALS, "in function declaration");
 
-        // @Todo(Jok): don't require braces {  }
-        advanceExpectToken(LEFT_BRACE);
-        List<AstStmt> body = anonymousBlock();
+        // @Todo(Jok): don't require braces {  } (support :)
+        List<AstStmt> body;
+        if (peekIs(EQUALS)) {
+            advanceExpectToken(EQUALS, "in function declaration");
+            advanceExpectToken(LEFT_BRACE);
+            body = anonymousBlock();
+        } else {
+            body = null;
+        }
 
         return new AstFunctionDecl(name, specifiers, effects, parameters, type, body);
     }
@@ -359,6 +372,7 @@ public class VerseParser {
 
         while (true) {
             if (advanceIfAny(LEFT_PAREN)) {
+                // @Todo(Jok): using variable expr here is ass
                 expr = finishCall(expr);
             } else if (advanceIfAny(DOT)) {
                 Token name = advanceExpectToken(IDENTIFIER);
@@ -406,10 +420,6 @@ public class VerseParser {
             return new AstVariableExpr(peekPrevious());
         }
 
-        if (advanceIfAny(IDENTIFIER)) {
-            return new AstVariableExpr(peekPrevious());
-        }
-
         // @Todo(Jok): add support for groups
 //        if (advanceIfAny(LEFT_PAREN)) {
 //            AstExpr expr = expression();
@@ -430,7 +440,7 @@ public class VerseParser {
 
             // @Todo(Jok) @Important: add more keywords
             switch (peek().type) {
-                case VAR, FOR, IF, WHILE, RETURN -> {
+                case VAR, FOR, IF, RETURN -> {
                     return;
                 }
             }
@@ -541,10 +551,14 @@ public class VerseParser {
 
     private Token advance() {
         if (!isAtEnd()) {
-            current++;
+            updateCurrentPosition(current + 1);
         }
 
         return peekPrevious();
+    }
+
+    private void updateCurrentPosition(int newCurrent) {
+        current = newCurrent;
     }
 
     private boolean advanceIfAny(TokenType... anyOfTypes) {

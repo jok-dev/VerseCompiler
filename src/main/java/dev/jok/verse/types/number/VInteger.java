@@ -41,7 +41,7 @@ public class VInteger extends VNumber<VInteger> {
     }
 
     @Override
-    protected Number getRawValue() {
+    public Number getRawValue() {
         return value;
     }
 

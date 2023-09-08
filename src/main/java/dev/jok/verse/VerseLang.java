@@ -1,6 +1,8 @@
 package dev.jok.verse;
 
 import dev.jok.verse.ast.types.AstStmt;
+import dev.jok.verse.ast.types.decl.AstFunctionDecl;
+import dev.jok.verse.interpreter.FunctionSearchVisitor;
 import dev.jok.verse.interpreter.VerseInterpreter;
 import dev.jok.verse.lexer.Token;
 import dev.jok.verse.lexer.VerseScanner;
@@ -12,6 +14,7 @@ import org.jetbrains.annotations.Nullable;
 import java.io.*;
 import java.nio.file.Files;
 import java.util.List;
+import java.util.function.Function;
 import java.util.logging.Level;
 import java.util.logging.LogManager;
 import java.util.logging.Logger;
@@ -52,6 +55,7 @@ public class VerseLang {
         VerseParser parser = new VerseParser(debug, tokens);
 
         List<AstStmt> statements;
+        long start = System.currentTimeMillis();
         try {
             statements = parser.parse();
         } catch (Exception e) {
@@ -65,7 +69,7 @@ public class VerseLang {
             return;
         }
 
-        LOGGER.log(Level.INFO, "Parsed " + statements.size() + " statements");
+        LOGGER.log(Level.INFO, "Parsed " + statements.size() + " statements in " + (System.currentTimeMillis() - start) + "ms");
 
         try (BufferedWriter writer = new BufferedWriter(new FileWriter("out.txt"))) {
             for (AstStmt stmt : statements) {
@@ -77,8 +81,15 @@ public class VerseLang {
         System.out.println();
         LOGGER.log(Level.INFO, "Running interpreter...");
 
-        VerseInterpreter interp = new VerseInterpreter();
-        interp.interpret(statements);
+        VerseInterpreter interp = new VerseInterpreter(statements);
+        AstFunctionDecl mainFunction = interp.lookupFunctionDecl("Main");
+
+        if (mainFunction == null) {
+            LOGGER.log(Level.SEVERE, "No main function found");
+            return;
+        }
+
+        interp.interpret(mainFunction.body);
     }
 
     public static void syntaxError(@Nullable Token previous, @NotNull Token current, @Nullable Token next, String message) {

@@ -125,7 +125,6 @@ public class VerseScanner {
         if (text.equals("self")) type = TokenType.SELF;
         if (text.equals("if")) type = TokenType.IF;
         if (text.equals("else")) type = TokenType.ELSE;
-        if (text.equals("while")) type = TokenType.WHILE;
         if (text.equals("for")) type = TokenType.FOR;
         if (text.equals("block")) type = TokenType.BLOCK;
         if (text.equals("spawn")) type = TokenType.SPAWN;

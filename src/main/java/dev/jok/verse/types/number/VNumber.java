@@ -11,7 +11,7 @@ public abstract class VNumber<T extends VNumber<T>> {
     public abstract T multiply(VNumber<?> rightVal);
     public abstract T divide(VNumber<?> rightVal);
 
-    protected abstract Number getRawValue();
+    public abstract Number getRawValue();
 
     protected void ensureSameType(VNumber<?> rightVal) {
         if (!isSameType(rightVal)) {
